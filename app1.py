@@ -4,7 +4,6 @@ import io
 import time
 from flask import Flask, render_template_string, request, redirect, url_for, flash, session, make_response, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from fpdf import FPDF  # Added for PDF generation
@@ -18,10 +17,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///contest.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Define your secret token somewhere in your app, e.g. right below app config
-
-
-
-
 
 # --- Path Configuration (FIX FOR DEPLOYMENT) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -38,17 +33,8 @@ else:
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# --- Mail Configuration (placeholders) ---
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = None
-app.config['MAIL_PASSWORD'] = None
-app.config['MAIL_DEFAULT_SENDER'] = None
-
 # --- Initialize Extensions ---
 db = SQLAlchemy(app)
-mail = Mail(app)
 
 # --- Database Models ---
 RESET_TOKEN = "myUltraSecretResetToken123!"
@@ -760,7 +746,7 @@ ADMIN_DASHBOARD_CONTENT = """
         <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-white dark:bg-gray-700 p-4 rounded-lg border border-red-200 dark:border-red-600">
                 <div class="text-center">
-                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">HRISHABHADMIN2025</div>
+                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">ADMIN_SECURE_****_****_****_****</div>
                     <div class="text-xs text-red-600 dark:text-red-400 mt-1">Registration Code</div>
                 </div>
             </div>
@@ -810,7 +796,7 @@ ADMIN_DASHBOARD_CONTENT = """
                     </select>
                 </div>
                 <div class="mt-4 flex justify-between items-center">
-                    <div><a href="{{ url_for('send_test_links') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">Send Test Links to Verified Candidates</a></div>
+                    <div><a href="{{ url_for('assign_and_email_all') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Assign & Email All Accepted</a></div>
                     <div class="flex space-x-2"><a href="{{ url_for('admin_export_csv') }}" class="bg-teal-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-teal-700">Export CSV</a><a href="{{ url_for('admin_export_pdf') }}" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700">Export PDF</a></div>
                 </div>
             </div>
