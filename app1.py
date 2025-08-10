@@ -1078,16 +1078,19 @@ def logout():
 
 if __name__ == '__main__':
     instance_path = os.path.join(basedir, 'instance')
-    if not os.path.exists(instance_path): os.makedirs(instance_path)
+    if not os.path.exists(instance_path):
+        os.makedirs(instance_path)
     with app.app_context():
         db.create_all()
-    if not Admin.query.first():
-        admin = Admin(username='admin')
-        admin.set_password('password')
-        db.session.add(admin)
-        db.session.commit()
-        app.logger.info("Default admin user created: admin / password")
+        if not Admin.query.first():
+            admin = Admin(username='admin')
+            admin.set_password('password')
+            db.session.add(admin)
+            db.session.commit()
+            app.logger.info("Default admin user created: admin / password")
     app.run(debug=True)
+
+
 
 
 
