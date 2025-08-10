@@ -1075,15 +1075,15 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
 
+@app.before_first_request
 def create_default_admin():
-    with app.app_context():
-        if not Admin.query.first():
-            print("Creating default admin user...")
-            admin = Admin(username='admin')
-            admin.set_password('password')
-            db.session.add(admin)
-            db.session.commit()
-            print("Default admin created. Username: admin, Password: password")
+    if not Admin.query.first():
+        admin = Admin(username='admin')
+        admin.set_password('yourStrongPassword123')
+        db.session.add(admin)
+        db.session.commit()
+        app.logger.info("Default admin user created: admin / yourStrongPassword123")
+
 
 if __name__ == '__main__':
     instance_path = os.path.join(basedir, 'instance')
@@ -1092,6 +1092,7 @@ if __name__ == '__main__':
         db.create_all()
     create_default_admin()
     app.run(debug=True)
+
 
 
 
