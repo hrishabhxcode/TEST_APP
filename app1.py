@@ -14,6 +14,21 @@ from datetime import datetime, time, date
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 
+# Define your secret token somewhere in your app, e.g. right below app config
+
+
+@app.route('/reset-admin-password/<token>')
+def reset_admin_password(token):
+    if token != RESET_TOKEN:
+        return "Unauthorized", 403
+    admin = Admin.query.filter_by(username='admin').first()
+    if admin:
+        admin.set_password('newStrongPassword123')
+        db.session.commit()
+        return "Admin password reset successfully"
+    return "Admin user not found"
+
+
 # --- Path Configuration (FIX FOR DEPLOYMENT) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
 instance_path = os.path.join(basedir, 'instance')
@@ -42,6 +57,7 @@ db = SQLAlchemy(app)
 mail = Mail(app)
 
 # --- Database Models ---
+RESET_TOKEN = "myUltraSecretResetToken123!"
 
 class Admin(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -737,9 +753,10 @@ def register(contest_id):
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', REGISTER_CONTENT), title=f"Register for {contest.name}", contest=contest)
 
 
-@app.route('/reset-admin-password/<token>', methods=['GET'])
+
+@app.route('/reset-admin-password/<token>')
 def reset_admin_password(token):
-    if token != 'your_secret_token_here':
+    if token != RESET_TOKEN:
         return "Unauthorized", 403
     admin = Admin.query.filter_by(username='admin').first()
     if admin:
@@ -994,6 +1011,9 @@ def admin_edit_student(student_id):
     past_performance = Student.query.filter(Student.email == student.email, Student.id != student.id, Student.score.isnot(None)).all()
     return render_admin_page(ADMIN_EDIT_STUDENT_CONTENT, title="Edit Student", student=student, branches=["CSE", "ECE", "EIE", "ME", "EEE", "Civil"], past_performance=past_performance)
 
+
+
+
 @app.route('/admin/update_status/<int:student_id>/<string:status>')
 def update_status(student_id, status):
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -1110,6 +1130,7 @@ if __name__ == '__main__':
             db.session.commit()
             app.logger.info("Default admin user created: admin / password")
     app.run(debug=True)
+
 
 
 
