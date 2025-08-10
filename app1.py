@@ -736,6 +736,19 @@ def register(contest_id):
         
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', REGISTER_CONTENT), title=f"Register for {contest.name}", contest=contest)
 
+
+@app.route('/reset-admin-password/<token>', methods=['GET'])
+def reset_admin_password(token):
+    if token != 'your_secret_token_here':
+        return "Unauthorized", 403
+    admin = Admin.query.filter_by(username='admin').first()
+    if admin:
+        admin.set_password('newStrongPassword123')
+        db.session.commit()
+        return "Admin password reset successfully"
+    return "Admin user not found"
+
+
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if 'admin_id' in session:
