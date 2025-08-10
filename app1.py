@@ -367,8 +367,7 @@ document.addEventListener('DOMContentLoaded', function () {
     prevBtn.addEventListener('click', function () { if (currentStep > 0) { steps[currentStep].classList.remove('form-step-active'); currentStep--; steps[currentStep].classList.add('form-step-active'); updateButtons(); updateProgress(); } });
     updateButtons(); updateProgress();
 });
-</script>
-"""
+</script>"""
 
 ADMIN_LOGIN_CONTENT = """
 <div class="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
@@ -469,20 +468,196 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>"""
 
 ADMIN_LAYOUT_TEMPLATE = """
-<div class="flex h-screen bg-gray-100 dark:bg-gray-900">
-    <div class="w-64 bg-gray-800 text-white flex-col hidden sm:flex">
-        <div class="px-6 py-4 border-b border-gray-700"><h2 class="text-xl font-semibold">Admin Panel</h2></div>
-        <nav class="flex-1 px-4 py-4 space-y-2">
-            <a href="{{ url_for('admin_dashboard') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_dashboard' %}bg-gray-900{% endif %}">Dashboard</a>
-            <a href="{{ url_for('admin_manage_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if 'contest' in request.endpoint and 'past' not in request.endpoint %}bg-gray-900{% endif %}">Manage Contests</a>
-            <a href="{{ url_for('admin_past_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if 'past_contest' in request.endpoint %}bg-gray-900{% endif %}">Past Contests</a>
-            <a href="{{ url_for('admin_manual_registration') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_manual_registration' %}bg-gray-900{% endif %}">Add Student</a>
-            <a href="{{ url_for('admin_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_settings' %}bg-gray-900{% endif %}">Global Settings</a>
-            <a href="{{ url_for('admin_email_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_email_settings' %}bg-gray-900{% endif %}">Email Settings</a>
-        </nav>
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+    </script>
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        .admin-sidebar { transition: transform 0.3s ease-in-out; }
+        .admin-content { transition: margin-left 0.3s ease-in-out; }
+        @media (max-width: 768px) {
+            .admin-sidebar { transform: translateX(-100%); }
+            .admin-sidebar.open { transform: translateX(0); }
+            .admin-content { margin-left: 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+    <!-- Mobile Menu Button -->
+    <div class="lg:hidden fixed top-4 left-4 z-50">
+        <button id="mobile-menu-btn" class="bg-gray-800 text-white p-2 rounded-md">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
     </div>
-    <div class="flex-1 p-4 sm:p-10 overflow-y-auto">{% block admin_content %}{% endblock %}</div>
-</div>
+
+    <!-- Admin Sidebar -->
+    <div id="admin-sidebar" class="admin-sidebar fixed inset-y-0 left-0 z-40 w-64 bg-gray-800 text-white transform lg:translate-x-0 lg:static lg:inset-0">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+            <h2 class="text-xl font-semibold">Admin Panel</h2>
+            <button id="close-sidebar" class="lg:hidden text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <nav class="flex-1 px-4 py-4 space-y-2">
+            <a href="{{ url_for('admin_dashboard') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 transition-colors {% if request.endpoint == 'admin_dashboard' %}bg-gray-900{% endif %}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z"></path>
+                </svg>
+                Dashboard
+            </a>
+            <a href="{{ url_for('admin_manage_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 transition-colors {% if 'contest' in request.endpoint and 'past' not in request.endpoint %}bg-gray-900{% endif %}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+                Manage Contests
+            </a>
+            <a href="{{ url_for('admin_past_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 transition-colors {% if 'past_contest' in request.endpoint %}bg-gray-900{% endif %}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Past Contests
+            </a>
+            <a href="{{ url_for('admin_manual_registration') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 transition-colors {% if request.endpoint == 'admin_manual_registration' %}bg-gray-900{% endif %}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                </svg>
+                Add Student
+            </a>
+            <a href="{{ url_for('admin_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 transition-colors {% if request.endpoint == 'admin_settings' %}bg-gray-900{% endif %}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                Global Settings
+            </a>
+            <a href="{{ url_for('admin_email_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 transition-colors {% if request.endpoint == 'admin_email_settings' %}bg-gray-900{% endif %}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                Email Settings
+            </a>
+        </nav>
+        
+        <div class="px-4 py-4 border-t border-gray-700">
+            <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 transition-colors text-red-400 hover:text-red-300">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                </svg>
+                Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="admin-content lg:ml-64 min-h-screen">
+        <!-- Top Bar -->
+        <div class="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
+            <div class="flex items-center justify-between px-6 py-4">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ title }}</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5">
+                        <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                        </svg>
+                        <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="px-6 py-4">
+                    {% for category, message in messages %}
+                        <div class="{% if category == 'success' %}bg-green-100 border-green-400 text-green-800 dark:bg-green-900/20 dark:border-green-600 dark:text-green-300{% elif category == 'error' %}bg-red-100 border-red-400 text-red-800 dark:bg-red-900/20 dark:border-red-600 dark:text-red-300{% else %}bg-blue-100 border-blue-400 text-blue-800 dark:bg-blue-900/20 dark:border-blue-600 dark:text-blue-300{% endif %} border px-4 py-3 rounded-lg relative mb-4" role="alert">
+                            <span class="block sm:inline">{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Page Content -->
+        <div class="p-6">
+            {% block admin_content %}{% endblock %}
+        </div>
+    </div>
+
+    <script>
+        // Mobile menu functionality
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const closeSidebarBtn = document.getElementById('close-sidebar');
+        const adminSidebar = document.getElementById('admin-sidebar');
+        const adminContent = document.querySelector('.admin-content');
+
+        mobileMenuBtn.addEventListener('click', () => {
+            adminSidebar.classList.add('open');
+        });
+
+        closeSidebarBtn.addEventListener('click', () => {
+            adminSidebar.classList.remove('open');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768 && 
+                !adminSidebar.contains(e.target) && 
+                !mobileMenuBtn.contains(e.target)) {
+                adminSidebar.classList.remove('open');
+            }
+        });
+
+        // Theme toggle functionality
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+        const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+
+        function setIconState() {
+            if (document.documentElement.classList.contains('dark')) {
+                themeToggleLightIcon.classList.remove('hidden');
+                themeToggleDarkIcon.classList.add('hidden');
+            } else {
+                themeToggleDarkIcon.classList.remove('hidden');
+                themeToggleLightIcon.classList.add('hidden');
+            }
+        }
+
+        setIconState();
+
+        themeToggleBtn.addEventListener('click', function() {
+            document.documentElement.classList.toggle('dark');
+            let theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            localStorage.setItem('color-theme', theme);
+            setIconState();
+        });
+    </script>
+</body>
+</html>
 """
 
 ADMIN_DASHBOARD_CONTENT = """
@@ -672,23 +847,22 @@ ADMIN_SETTINGS_CONTENT = """
 ADMIN_EMAIL_SETTINGS_CONTENT = """
 <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Email Settings</h1>
 <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
-    <div class="prose prose-sm max-w-none text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-gray-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-4 mb-6">
-        <h4>Instructions for Sending Email via Gmail</h4>
-        <ol>
-            <li><strong>Enable 2-Step Verification</strong> on your Google Account.</li>
-            <li>Go to your Google Account's <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-blue-600 hover:underline">App Passwords</a> page.</li>
-            <li>Select "Mail" for the app and "Other (Custom name)" for the device. Name it "Coding Contest App".</li>
-            <li>Copy the generated 16-digit password.</li>
-            <li>Paste your full Gmail address and the 16-digit App Password below and save.</li>
-        </ol>
-        <p>This allows the application to send emails securely without storing your main password.</p>
-    </div>
     <form action="{{ url_for('admin_email_settings') }}" method="POST" class="space-y-6">
-        <div><label for="mail_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Your Gmail Address</label>
-        <input type="email" name="mail_username" id="mail_username" value="{{ email_settings.get('mail_username', '') }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
-        <div><label for="mail_app_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Google App Password (16 digits)</label>
-        <input type="password" name="mail_app_password" id="mail_app_password" value="{{ email_settings.get('mail_app_password', '') }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
-        <div class="flex justify-end"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Email Settings</button></div>
+        <div>
+            <label for="mail_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Username</label>
+            <input type="email" name="mail_username" id="mail_username" value="{{ mail_username or '' }}" required 
+                   class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">The email address that will be used to send emails to students.</p>
+        </div>
+        <div>
+            <label for="mail_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Password</label>
+            <input type="password" name="mail_password" id="mail_password" value="{{ mail_password or '' }}" required 
+                   class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">The password for the email account (app password for Gmail).</p>
+        </div>
+        <div class="flex justify-end">
+            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Email Settings</button>
+        </div>
     </form>
 </div>
 """
