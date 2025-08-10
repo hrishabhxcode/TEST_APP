@@ -33,7 +33,7 @@ if database_url:
     # The DATABASE_URL from Render starts with postgres://, but SQLAlchemy needs postgresql://
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url.replace("postgres://", "postgresql://", 1)
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'contest.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'codefest-db.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
@@ -1087,3 +1087,4 @@ if __name__ == '__main__':
         db.create_all()
     create_default_admin()
     app.run(debug=True)
+
