@@ -1,7 +1,3 @@
-# main.py
-# This single file contains the complete Flask application.
-# It includes the backend logic, database models, and all HTML templates.
-
 import os
 import csv
 import io
@@ -10,7 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
-from fpdf import FPDF # Added for PDF generation
+from fpdf import FPDF  # Added for PDF generation
 from sqlalchemy import or_
 from datetime import datetime, time, date
 
@@ -19,30 +15,21 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 
 # --- Path Configuration (FIX FOR DEPLOYMENT) ---
-# Ensure the 'instance' folder exists where the SQLite DB will be stored.
-# This needs to be outside the __main__ block to run on deployment servers.
 basedir = os.path.abspath(os.path.dirname(__file__))
 instance_path = os.path.join(basedir, 'instance')
 if not os.path.exists(instance_path):
     os.makedirs(instance_path)
 
 # --- Database Configuration ---
-# Use Render's PostgreSQL database URL if available, otherwise use local SQLite
 database_url = os.environ.get('DATABASE_URL')
-
 if database_url:
-    # Fix protocol prefix for SQLAlchemy if needed
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url.replace("postgres://", "postgresql://", 1)
 else:
-    # fallback to local SQLite for dev
-    instance_path = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'local.db')
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-
-
-# --- Mail Configuration (placeholders, will be updated dynamically) ---
+# --- Mail Configuration (placeholders) ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -94,19 +81,32 @@ class ContestSetting(db.Model):
 # --- PDF Generation Helper Class ---
 class PDF(FPDF):
     def header(self):
-        self.set_font('helvetica', 'B', 15); self.cell(0, 10, 'CodeFest - Student Score Report', 0, 1, 'C'); self.ln(10)
+        self.set_font('helvetica', 'B', 15)
+        self.cell(0, 10, 'CodeFest - Student Score Report', 0, 1, 'C')
+        self.ln(10)
     def footer(self):
-        self.set_y(-15); self.set_font('helvetica', 'I', 8); self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+        self.set_y(-15)
+        self.set_font('helvetica', 'I', 8)
+        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
     def create_table(self, table_data, title='', data_size=10, title_size=12):
-        self.set_font('helvetica', 'B', title_size); self.cell(0, 10, title, 0, 1, 'C'); self.ln(4)
-        self.set_font('helvetica', 'B', data_size); line_height = self.font_size * 2
+        self.set_font('helvetica', 'B', title_size)
+        self.cell(0, 10, title, 0, 1, 'C')
+        self.ln(4)
+        self.set_font('helvetica', 'B', data_size)
+        line_height = self.font_size * 2
         col_widths = {'Rank': 15, 'Name': 50, 'Email': 65, 'Branch': 25, 'Score': 20}
-        for col_name in table_data[0]: self.cell(col_widths[col_name], line_height, col_name, border=1, align='C')
+        for col_name in table_data[0]:
+            self.cell(col_widths[col_name], line_height, col_name, border=1, align='C')
         self.ln(line_height)
         self.set_font('helvetica', '', data_size)
         for row in table_data[1:]:
-            for i, datum in enumerate(row): self.cell(col_widths[table_data[0][i]], line_height, str(datum), border=1, align='L')
+            for i, datum in enumerate(row):
+                self.cell(col_widths[table_data[0][i]], line_height, str(datum), border=1, align='L')
             self.ln(line_height)
+
+# --- CREATE TABLES on startup ---
+with app.app_context():
+    db.create_all()
 
 # --- HTML Templates ---
 
@@ -1092,6 +1092,7 @@ if __name__ == '__main__':
         db.create_all()
     create_default_admin()
     app.run(debug=True)
+
 
 
 
