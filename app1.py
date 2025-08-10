@@ -13,7 +13,7 @@ from datetime import datetime, time, date
 
 # --- App Configuration ---
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = 'HRISHABHADMIN2025'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///contest.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -516,6 +516,25 @@ ADMIN_LAYOUT_TEMPLATE = """
         .nav-item:hover { transform: translateX(4px); }
         .nav-item.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .nav-item.active:hover { transform: none; }
+        
+        /* Fix sidebar positioning */
+        .admin-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            z-index: 40;
+        }
+        
+        .admin-content {
+            margin-left: 18rem; /* 72 * 0.25rem = 18rem */
+        }
+        
+        @media (max-width: 1024px) {
+            .admin-content {
+                margin-left: 0;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
@@ -529,7 +548,7 @@ ADMIN_LAYOUT_TEMPLATE = """
     </div>
 
     <!-- Admin Sidebar -->
-    <div id="admin-sidebar" class="admin-sidebar fixed inset-y-0 left-0 z-40 w-72 bg-gradient-to-b from-gray-800 to-gray-900 text-white transform lg:translate-x-0 lg:static lg:inset-0 shadow-2xl">
+    <div id="admin-sidebar" class="admin-sidebar w-72 bg-gradient-to-b from-gray-800 to-gray-900 text-white shadow-2xl">
         <!-- Sidebar Header -->
         <div class="flex items-center justify-between px-6 py-6 border-b border-gray-700/50">
             <div class="flex items-center space-x-3">
@@ -609,11 +628,11 @@ ADMIN_LAYOUT_TEMPLATE = """
                         </svg>
                         <span class="font-medium">Global Settings</span>
                     </a>
-                    <a href="{{ url_for('admin_email_settings') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'admin_email_settings' %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
+                    <a href="{{ url_for('admin_manage_admins') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'admin_manage_admins' %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
                         </svg>
-                        <span class="font-medium">Email Settings</span>
+                        <span class="font-medium">Manage Admins</span>
                     </a>
                 </div>
             </div>
@@ -741,7 +760,7 @@ ADMIN_DASHBOARD_CONTENT = """
         <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-white dark:bg-gray-700 p-4 rounded-lg border border-red-200 dark:border-red-600">
                 <div class="text-center">
-                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">ADMIN_SECURE_2024_X9K7M2P5Q8R3T6W1Y4Z0</div>
+                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">HRISHABHADMIN2025</div>
                     <div class="text-xs text-red-600 dark:text-red-400 mt-1">Registration Code</div>
                 </div>
             </div>
@@ -791,7 +810,7 @@ ADMIN_DASHBOARD_CONTENT = """
                     </select>
                 </div>
                 <div class="mt-4 flex justify-between items-center">
-                    <div><a href="{{ url_for('assign_and_email_all') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Assign & Email All Accepted</a></div>
+                    <div><a href="{{ url_for('send_test_links') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">Send Test Links to Verified Candidates</a></div>
                     <div class="flex space-x-2"><a href="{{ url_for('admin_export_csv') }}" class="bg-teal-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-teal-700">Export CSV</a><a href="{{ url_for('admin_export_pdf') }}" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700">Export PDF</a></div>
                 </div>
             </div>
@@ -951,9 +970,13 @@ ADMIN_SETTINGS_CONTENT = """
         <div>
             <label class="block text-sm font-medium text-red-700 dark:text-red-300 mb-2">Admin Registration Security Code</label>
             <div class="flex items-center space-x-2">
-                <input type="text" value="ADMIN_SECURE_2024_X9K7M2P5Q8R3T6W1Y4Z0" readonly 
+                <input type="password" id="security-code-input" value="HRISHABHADMIN2025" readonly 
                        class="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-red-300 dark:border-red-600 rounded-md text-sm font-mono text-red-800 dark:text-red-200 cursor-text">
-                <button type="button" onclick="copyToClipboard(this.previousElementSibling)" 
+                <button type="button" id="toggle-mask" onclick="toggleMask()" 
+                        class="px-3 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors">
+                    Show
+                </button>
+                <button type="button" onclick="copyToClipboard(document.getElementById('security-code-input'))" 
                         class="px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors">
                     Copy
                 </button>
@@ -1010,6 +1033,23 @@ function copyToClipboard(inputElement) {
         button.classList.add('bg-red-600', 'hover:bg-red-700');
     }, 2000);
 }
+
+function toggleMask() {
+    const input = document.getElementById('security-code-input');
+    const button = document.getElementById('toggle-mask');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        button.textContent = 'Hide';
+        button.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+        button.classList.add('bg-orange-600', 'hover:bg-orange-700');
+    } else {
+        input.type = 'password';
+        button.textContent = 'Show';
+        button.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+        button.classList.add('bg-gray-600', 'hover:bg-gray-700');
+    }
+}
 </script>
 """
 
@@ -1030,7 +1070,7 @@ ADMIN_EMAIL_SETTINGS_CONTENT = """
             <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">The password for the email account (app password for Gmail).</p>
         </div>
         <div class="flex justify-end">
-            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Email Settings</button>
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md font-medium hover:bg-blue-700">Save Email Settings</button>
         </div>
     </form>
 </div>
@@ -1378,8 +1418,33 @@ def admin_delete_contest(contest_id):
 @app.route('/admin/register_admin', methods=['GET', 'POST'])
 def admin_register_admin():
     # Redirect to login page since registration is now available there
-    flash('Admin registration is now available on the login page.', 'info')
     return redirect(url_for('admin_login'))
+
+@app.route('/admin/manage_admins')
+def admin_manage_admins():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    admins = Admin.query.all()
+    return render_admin_page(ADMIN_MANAGE_ADMINS_CONTENT, title="Manage Admin Accounts", admins=admins)
+
+@app.route('/admin/delete_admin/<int:admin_id>', methods=['POST'])
+def admin_delete_admin(admin_id):
+    if 'admin_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    # Prevent deleting the current admin
+    if admin_id == session['admin_id']:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(url_for('admin_manage_admins'))
+    
+    admin = Admin.query.get_or_404(admin_id)
+    username = admin.username
+    db.session.delete(admin)
+    db.session.commit()
+    
+    flash(f'Admin account "{username}" has been deleted successfully.', 'success')
+    return redirect(url_for('admin_manage_admins'))
 
 @app.route('/admin/delete_student/<int:student_id>', methods=['POST'])
 def admin_delete_student(student_id):
@@ -1601,7 +1666,7 @@ def logout():
     return redirect(url_for('index'))
 
 # --- Security Configuration ---
-ADMIN_REGISTRATION_CODE = "ADMIN_SECURE_2024_X9K7M2P5Q8R3T6W1Y4Z0"  # Secure alphanumeric code required for admin registration
+ADMIN_REGISTRATION_CODE = "HRISHABHADMIN2025"  # Secure alphanumeric code required for admin registration
 MAX_LOGIN_ATTEMPTS = 5  # Maximum failed login attempts before temporary lockout
 LOGIN_LOCKOUT_TIME = 300  # Lockout time in seconds (5 minutes)
 
