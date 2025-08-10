@@ -371,13 +371,102 @@ document.addEventListener('DOMContentLoaded', function () {
 """
 
 ADMIN_LOGIN_CONTENT = """
-<div class="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8"><div class="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
-<div><h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Admin Panel Login</h2></div>
-<form class="mt-8 space-y-6" action="{{ url_for('admin_login') }}" method="POST"><div class="rounded-md shadow-sm -space-y-px">
-<div><label for="username" class="sr-only">Username</label><input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username"></div>
-<div><label for="password" class="sr-only">Password</label><input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password"></div>
-</div><div><button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Sign in</button></div></form>
-</div></div>"""
+<div class="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl w-full space-y-8">
+        <!-- Login Form -->
+        <div class="bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Admin Panel Login</h2>
+            </div>
+            <form class="mt-8 space-y-6" action="{{ url_for('admin_login') }}" method="POST">
+                <input type="hidden" name="action" value="login">
+                <div class="rounded-md shadow-sm -space-y-px">
+                    <div>
+                        <label for="username" class="sr-only">Username</label>
+                        <input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username">
+                    </div>
+                    <div>
+                        <label for="password" class="sr-only">Password</label>
+                        <input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password">
+                    </div>
+                </div>
+                <div>
+                    <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Sign in</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Registration Form -->
+        <div class="bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Create New Admin Account</h2>
+                {% if is_first_admin %}
+                <div class="mt-2 text-center">
+                    <p class="text-sm text-green-600 dark:text-green-400 font-medium">First Admin Setup</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">No admin accounts exist yet. Create the first admin account to get started.</p>
+                </div>
+                {% else %}
+                <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">Register a new admin user to access the admin panel</p>
+                {% endif %}
+            </div>
+            <form class="mt-8 space-y-6" action="{{ url_for('admin_login') }}" method="POST" id="registrationForm">
+                <input type="hidden" name="action" value="register">
+                <div class="rounded-md shadow-sm -space-y-px">
+                    <div>
+                        <label for="reg_username" class="sr-only">Username</label>
+                        <input id="reg_username" name="reg_username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username">
+                    </div>
+                    <div>
+                        <label for="reg_password" class="sr-only">Password</label>
+                        <input id="reg_password" name="reg_password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password">
+                    </div>
+                    <div>
+                        <label for="reg_confirm_password" class="sr-only">Confirm Password</label>
+                        <input id="reg_confirm_password" name="reg_confirm_password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Confirm Password">
+                    </div>
+                </div>
+                <div id="passwordMatch" class="text-sm text-red-600 dark:text-red-400 hidden">Passwords do not match</div>
+                <div>
+                    <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Create Admin Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordInput = document.getElementById('reg_password');
+    const confirmPasswordInput = document.getElementById('reg_confirm_password');
+    const passwordMatchDiv = document.getElementById('passwordMatch');
+    const registrationForm = document.getElementById('registrationForm');
+    
+    function checkPasswordMatch() {
+        if (confirmPasswordInput.value && passwordInput.value !== confirmPasswordInput.value) {
+            passwordMatchDiv.classList.remove('hidden');
+            confirmPasswordInput.classList.add('border-red-500');
+            confirmPasswordInput.classList.remove('border-gray-300', 'dark:border-gray-600');
+        } else {
+            passwordMatchDiv.classList.add('hidden');
+            confirmPasswordInput.classList.remove('border-red-500');
+            confirmPasswordInput.classList.add('border-gray-300', 'dark:border-gray-600');
+        }
+    }
+    
+    passwordInput.addEventListener('input', checkPasswordMatch);
+    confirmPasswordInput.addEventListener('input', checkPasswordMatch);
+    
+    registrationForm.addEventListener('submit', function(e) {
+        if (passwordInput.value !== confirmPasswordInput.value) {
+            e.preventDefault();
+            passwordMatchDiv.classList.remove('hidden');
+            confirmPasswordInput.classList.add('border-red-500');
+            confirmPasswordInput.classList.remove('border-gray-300', 'dark:border-gray-600');
+            return false;
+        }
+    });
+});
+</script>"""
 
 ADMIN_LAYOUT_TEMPLATE = """
 <div class="flex h-screen bg-gray-100 dark:bg-gray-900">
@@ -388,7 +477,6 @@ ADMIN_LAYOUT_TEMPLATE = """
             <a href="{{ url_for('admin_manage_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if 'contest' in request.endpoint and 'past' not in request.endpoint %}bg-gray-900{% endif %}">Manage Contests</a>
             <a href="{{ url_for('admin_past_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if 'past_contest' in request.endpoint %}bg-gray-900{% endif %}">Past Contests</a>
             <a href="{{ url_for('admin_manual_registration') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_manual_registration' %}bg-gray-900{% endif %}">Add Student</a>
-            <a href="{{ url_for('admin_register_admin') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_register_admin' %}bg-gray-900{% endif %}">Register New Admin</a>
             <a href="{{ url_for('admin_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_settings' %}bg-gray-900{% endif %}">Global Settings</a>
             <a href="{{ url_for('admin_email_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_email_settings' %}bg-gray-900{% endif %}">Email Settings</a>
         </nav>
@@ -772,23 +860,63 @@ def reset_admin_password(token):
 def admin_login():
     if 'admin_id' in session:
         return redirect(url_for('admin_dashboard'))
+    
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        app.logger.info(f"Login attempt: username={username}")
-        admin = Admin.query.filter_by(username=username).first()
-        if admin:
-            app.logger.info(f"Admin found: {admin.username}")
-            if admin.check_password(password):
-                app.logger.info("Password verified, login success")
-                session['admin_id'] = admin.id
-                return redirect(url_for('admin_dashboard'))
+        action = request.form.get('action', 'login')
+        
+        if action == 'login':
+            # Handle login
+            username = request.form['username']
+            password = request.form['password']
+            app.logger.info(f"Login attempt: username={username}")
+            admin = Admin.query.filter_by(username=username).first()
+            if admin:
+                app.logger.info(f"Admin found: {admin.username}")
+                if admin.check_password(password):
+                    app.logger.info("Password verified, login success")
+                    session['admin_id'] = admin.id
+                    return redirect(url_for('admin_dashboard'))
+                else:
+                    app.logger.info("Password verification failed")
             else:
-                app.logger.info("Password verification failed")
-        else:
-            app.logger.info("Admin not found")
-        flash('Invalid username or password.', 'error')
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login")
+                app.logger.info("Admin not found")
+            flash('Invalid username or password.', 'error')
+            
+        elif action == 'register':
+            # Handle registration
+            username = request.form['reg_username']
+            password = request.form['reg_password']
+            confirm_password = request.form['reg_confirm_password']
+            
+            # Check if this is the first admin user
+            existing_admin_count = Admin.query.count()
+            is_first_admin = existing_admin_count == 0
+            
+            # Validation
+            if not username or not password:
+                flash('Username and password are required.', 'error')
+            elif password != confirm_password:
+                flash('Passwords do not match.', 'error')
+            elif len(password) < 6:
+                flash('Password must be at least 6 characters long.', 'error')
+            elif Admin.query.filter_by(username=username).first():
+                flash('Username already exists.', 'error')
+            else:
+                # Create new admin
+                new_admin = Admin(username=username)
+                new_admin.set_password(password)
+                db.session.add(new_admin)
+                db.session.commit()
+                
+                if is_first_admin:
+                    flash(f'First admin account "{username}" created successfully! You can now login.', 'success')
+                else:
+                    flash(f'Admin account "{username}" created successfully! You can now login.', 'success')
+                return redirect(url_for('admin_login'))
+    
+    # Check if there are any existing admin users
+    existing_admin_count = Admin.query.count()
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login", is_first_admin=(existing_admin_count == 0))
 
 
 @app.route('/admin/dashboard', methods=['GET'])
@@ -885,19 +1013,9 @@ def admin_delete_contest(contest_id):
 
 @app.route('/admin/register_admin', methods=['GET', 'POST'])
 def admin_register_admin():
-    if 'admin_id' not in session: return redirect(url_for('admin_login'))
-    if request.method == 'POST':
-        username = request.form['username']
-        if Admin.query.filter_by(username=username).first():
-            flash('Username already exists.', 'error')
-        else:
-            new_admin = Admin(username=username)
-            new_admin.set_password(request.form['password'])
-            db.session.add(new_admin)
-            db.session.commit()
-            flash(f'Admin "{username}" created successfully.', 'success')
-            return redirect(url_for('admin_dashboard'))
-    return render_admin_page(ADMIN_REGISTER_ADMIN_CONTENT, title="Register New Admin")
+    # Redirect to login page since registration is now available there
+    flash('Admin registration is now available on the login page.', 'info')
+    return redirect(url_for('admin_login'))
 
 @app.route('/admin/delete_student/<int:student_id>', methods=['POST'])
 def admin_delete_student(student_id):
