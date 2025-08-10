@@ -17,16 +17,7 @@ app.config['SECRET_KEY'] = secrets.token_hex(16)
 # Define your secret token somewhere in your app, e.g. right below app config
 
 
-@app.route('/reset-admin-password/<token>')
-def reset_admin_password(token):
-    if token != RESET_TOKEN:
-        return "Unauthorized", 403
-    admin = Admin.query.filter_by(username='admin').first()
-    if admin:
-        admin.set_password('newStrongPassword123')
-        db.session.commit()
-        return "Admin password reset successfully"
-    return "Admin user not found"
+
 
 
 # --- Path Configuration (FIX FOR DEPLOYMENT) ---
@@ -65,6 +56,17 @@ class Admin(db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
+
+@app.route('/reset_admin_password/<token>')
+def reset_admin_password(token):
+    if token != RESET_TOKEN:
+        return "Unauthorized", 403
+    admin = Admin.query.filter_by(username='admin').first()
+    if admin:
+        admin.set_password('newStrongPassword123')
+        db.session.commit()
+        return "Admin password reset successfully"
+    return "Admin user not found"
 
 class Contest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1130,6 +1132,7 @@ if __name__ == '__main__':
             db.session.commit()
             app.logger.info("Default admin user created: admin / password")
     app.run(debug=True)
+
 
 
 
