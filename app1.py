@@ -738,18 +738,26 @@ def register(contest_id):
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    if 'admin_id' in session: return redirect(url_for('admin_dashboard'))
+    if 'admin_id' in session:
+        return redirect(url_for('admin_dashboard'))
     if request.method == 'POST':
-        admin = Admin.query.filter_by(username=request.form['username']).first()
-        if admin and admin.check_password(request.form['password']):
-            session['admin_id'] = admin.id
-            return redirect(url_for('admin_dashboard'))
+        username = request.form['username']
+        password = request.form['password']
+        app.logger.info(f"Login attempt: username={username}")
+        admin = Admin.query.filter_by(username=username).first()
+        if admin:
+            app.logger.info(f"Admin found: {admin.username}")
+            if admin.check_password(password):
+                app.logger.info("Password verified, login success")
+                session['admin_id'] = admin.id
+                return redirect(url_for('admin_dashboard'))
+            else:
+                app.logger.info("Password verification failed")
+        else:
+            app.logger.info("Admin not found")
         flash('Invalid username or password.', 'error')
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login")
 
-def render_admin_page(content, **kwargs):
-    base = LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LAYOUT_TEMPLATE)
-    return render_template_string(base.replace('{% block admin_content %}{% endblock %}', content), **kwargs)
 
 @app.route('/admin/dashboard', methods=['GET'])
 def admin_dashboard():
@@ -1089,6 +1097,7 @@ if __name__ == '__main__':
             db.session.commit()
             app.logger.info("Default admin user created: admin / password")
     app.run(debug=True)
+
 
 
 
