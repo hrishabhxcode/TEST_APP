@@ -10,6 +10,11 @@ from fpdf import FPDF  # Added for PDF generation
 from sqlalchemy import or_
 from datetime import datetime, time, date
 
+# --- Helper Functions ---
+def render_admin_page(content, **kwargs):
+    """Helper function to render admin pages with the admin layout template"""
+    return render_template_string(ADMIN_LAYOUT_TEMPLATE.replace('{% block admin_content %}{% endblock %}', content), **kwargs)
+
 # --- App Configuration ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
