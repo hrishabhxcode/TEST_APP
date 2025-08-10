@@ -10,16 +10,32 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
-from fpdf import FPDF  # Added for PDF generation
+from fpdf import FPDF # Added for PDF generation
 from sqlalchemy import or_
 from datetime import datetime, time, date
 
 # --- App Configuration ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
+
+# --- Path Configuration (FIX FOR DEPLOYMENT) ---
+# Ensure the 'instance' folder exists where the SQLite DB will be stored.
+# This needs to be outside the __main__ block to run on deployment servers.
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'instance', 'contest.db')
+instance_path = os.path.join(basedir, 'instance')
+if not os.path.exists(instance_path):
+    os.makedirs(instance_path)
+
+# --- Database Configuration ---
+# Use Render's PostgreSQL database URL if available, otherwise use local SQLite
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # The DATABASE_URL from Render starts with postgres://, but SQLAlchemy needs postgresql://
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url.replace("postgres://", "postgresql://", 1)
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'contest.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 
 # --- Mail Configuration (placeholders, will be updated dynamically) ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -33,18 +49,14 @@ app.config['MAIL_DEFAULT_SENDER'] = None
 db = SQLAlchemy(app)
 mail = Mail(app)
 
-
 # --- Database Models ---
 
 class Admin(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-
     def set_password(self, password): self.password_hash = generate_password_hash(password)
-
     def check_password(self, password): return check_password_hash(self.password_hash, password)
-
 
 class Contest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -55,7 +67,6 @@ class Contest(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     publish_results = db.Column(db.Boolean, default=False, nullable=False)
     students = db.relationship('Student', backref='contest', lazy=True, cascade="all, delete-orphan")
-
 
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -70,40 +81,27 @@ class Student(db.Model):
     contest_id = db.Column(db.Integer, db.ForeignKey('contest.id'), nullable=False)
     __table_args__ = (db.UniqueConstraint('email', 'contest_id', name='_email_contest_uc'),)
 
-
 class ContestSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.String(300), nullable=True)
 
-
 # --- PDF Generation Helper Class ---
 class PDF(FPDF):
     def header(self):
-        self.set_font('helvetica', 'B', 15);
-        self.cell(0, 10, 'CodeFest - Student Score Report', 0, 1, 'C');
-        self.ln(10)
-
+        self.set_font('helvetica', 'B', 15); self.cell(0, 10, 'CodeFest - Student Score Report', 0, 1, 'C'); self.ln(10)
     def footer(self):
-        self.set_y(-15);
-        self.set_font('helvetica', 'I', 8);
-        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-
+        self.set_y(-15); self.set_font('helvetica', 'I', 8); self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
     def create_table(self, table_data, title='', data_size=10, title_size=12):
-        self.set_font('helvetica', 'B', title_size);
-        self.cell(0, 10, title, 0, 1, 'C');
-        self.ln(4)
-        self.set_font('helvetica', 'B', data_size);
-        line_height = self.font_size * 2
+        self.set_font('helvetica', 'B', title_size); self.cell(0, 10, title, 0, 1, 'C'); self.ln(4)
+        self.set_font('helvetica', 'B', data_size); line_height = self.font_size * 2
         col_widths = {'Rank': 15, 'Name': 50, 'Email': 65, 'Branch': 25, 'Score': 20}
         for col_name in table_data[0]: self.cell(col_widths[col_name], line_height, col_name, border=1, align='C')
         self.ln(line_height)
         self.set_font('helvetica', '', data_size)
         for row in table_data[1:]:
-            for i, datum in enumerate(row): self.cell(col_widths[table_data[0][i]], line_height, str(datum), border=1,
-                                                      align='L')
+            for i, datum in enumerate(row): self.cell(col_widths[table_data[0][i]], line_height, str(datum), border=1, align='L')
             self.ln(line_height)
-
 
 # --- HTML Templates ---
 
@@ -691,30 +689,22 @@ STUDENT_DASHBOARD_CONTENT = """
 </div></div></div>
 """
 
-
 # --- Route Definitions ---
 
 @app.route('/')
 def index():
     contests = Contest.query.filter_by(is_active=True).order_by(Contest.date.asc()).all()
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', HOMEPAGE_CONTENT),
-                                  title="Home", contests=contests)
-
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', HOMEPAGE_CONTENT), title="Home", contests=contests)
 
 @app.route('/syllabus')
 def syllabus():
-    contests = Contest.query.filter(Contest.is_active == True, Contest.syllabus != None,
-                                    Contest.syllabus != '').order_by(Contest.date.asc()).all()
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', SYLLABUS_CONTENT),
-                                  title="Syllabus", contests=contests)
-
+    contests = Contest.query.filter(Contest.is_active==True, Contest.syllabus != None, Contest.syllabus != '').order_by(Contest.date.asc()).all()
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', SYLLABUS_CONTENT), title="Syllabus", contests=contests)
 
 @app.route('/results')
 def public_results():
     contests = Contest.query.filter_by(publish_results=True).order_by(Contest.date.desc()).all()
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', PUBLIC_RESULTS_CONTENT),
-                                  title="Past Contest Results", contests=contests)
-
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', PUBLIC_RESULTS_CONTENT), title="Past Contest Results", contests=contests)
 
 @app.route('/register/<int:contest_id>', methods=['GET', 'POST'])
 def register(contest_id):
@@ -728,7 +718,7 @@ def register(contest_id):
         if Student.query.filter_by(email=email, contest_id=contest.id).first():
             flash('You have already registered for this contest with this email address.', 'error')
             return redirect(url_for('register', contest_id=contest.id))
-
+        
         new_student = Student(
             name=request.form['name'], email=email, college=request.form['college'],
             branch=request.form['branch'], graduation_year=request.form['graduation_year'],
@@ -738,10 +728,8 @@ def register(contest_id):
         db.session.commit()
         flash(f'You have successfully registered for {contest.name}! Please log in to check your status.', 'success')
         return redirect(url_for('student_login'))
-
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', REGISTER_CONTENT),
-                                  title=f"Register for {contest.name}", contest=contest)
-
+        
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', REGISTER_CONTENT), title=f"Register for {contest.name}", contest=contest)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -752,37 +740,28 @@ def admin_login():
             session['admin_id'] = admin.id
             return redirect(url_for('admin_dashboard'))
         flash('Invalid username or password.', 'error')
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT),
-                                  title="Admin Login")
-
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login")
 
 def render_admin_page(content, **kwargs):
     base = LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LAYOUT_TEMPLATE)
     return render_template_string(base.replace('{% block admin_content %}{% endblock %}', content), **kwargs)
 
-
 @app.route('/admin/dashboard', methods=['GET'])
 def admin_dashboard():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
     query = Student.query
-    contest_id, search, branch, status = request.args.get('contest_id'), request.args.get('search',
-                                                                                          ''), request.args.get(
-        'branch', ''), request.args.get('status', '')
-
+    contest_id, search, branch, status = request.args.get('contest_id'), request.args.get('search', ''), request.args.get('branch', ''), request.args.get('status', '')
+    
     if contest_id: query = query.filter_by(contest_id=int(contest_id))
     if search: query = query.filter(or_(Student.name.ilike(f'%{search}%'), Student.email.ilike(f'%{search}%')))
     if branch: query = query.filter_by(branch=branch)
     if status: query = query.filter_by(status=status)
 
     students = query.order_by(Student.id.desc()).all()
-    stats = {'total': Student.query.count(), 'accepted': Student.query.filter_by(status='Accepted').count(),
-             'pending': Student.query.filter_by(status='Pending').count(),
-             'denied': Student.query.filter_by(status='Denied').count()}
+    stats = {'total': Student.query.count(), 'accepted': Student.query.filter_by(status='Accepted').count(), 'pending': Student.query.filter_by(status='Pending').count(), 'denied': Student.query.filter_by(status='Denied').count()}
     branches = [b.branch for b in db.session.query(Student.branch).distinct()]
     all_contests = Contest.query.order_by(Contest.date.desc()).all()
-    return render_admin_page(ADMIN_DASHBOARD_CONTENT, title="Admin Dashboard", students=students, stats=stats,
-                             branches=branches, all_contests=all_contests)
-
+    return render_admin_page(ADMIN_DASHBOARD_CONTENT, title="Admin Dashboard", students=students, stats=stats, branches=branches, all_contests=all_contests)
 
 @app.route('/admin/contests', methods=['GET', 'POST'])
 def admin_manage_contests():
@@ -800,10 +779,9 @@ def admin_manage_contests():
         db.session.commit()
         flash(f"Contest '{new_contest.name}' created successfully.", 'success')
         return redirect(url_for('admin_manage_contests'))
-
+    
     contests = Contest.query.filter(Contest.date >= date.today()).order_by(Contest.date.asc()).all()
     return render_admin_page(ADMIN_MANAGE_CONTESTS_CONTENT, title="Manage Contests", contests=contests)
-
 
 @app.route('/admin/contests/edit/<int:contest_id>', methods=['GET', 'POST'])
 def admin_edit_contest(contest_id):
@@ -820,22 +798,18 @@ def admin_edit_contest(contest_id):
         return redirect(url_for('admin_manage_contests'))
     return render_admin_page(ADMIN_EDIT_CONTEST_CONTENT, title="Edit Contest", contest=contest)
 
-
 @app.route('/admin/past_contests')
 def admin_past_contests():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
     contests = Contest.query.filter(Contest.date < date.today()).order_by(Contest.date.desc()).all()
     return render_admin_page(ADMIN_PAST_CONTESTS_CONTENT, title="Past Contests", contests=contests)
 
-
 @app.route('/admin/past_contests/<int:contest_id>')
 def admin_view_contest_results(contest_id):
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
     contest = Contest.query.get_or_404(contest_id)
     students = Student.query.filter_by(contest_id=contest.id).order_by(Student.name).all()
-    return render_admin_page(ADMIN_VIEW_RESULTS_CONTENT, title=f"Results for {contest.name}", contest=contest,
-                             students=students)
-
+    return render_admin_page(ADMIN_VIEW_RESULTS_CONTENT, title=f"Results for {contest.name}", contest=contest, students=students)
 
 @app.route('/admin/contests/toggle/<int:contest_id>')
 def admin_toggle_contest(contest_id):
@@ -846,7 +820,6 @@ def admin_toggle_contest(contest_id):
     flash(f"Contest '{contest.name}' status updated.", 'success')
     return redirect(url_for('admin_manage_contests'))
 
-
 @app.route('/admin/contests/publish/<int:contest_id>')
 def admin_toggle_publish(contest_id):
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -856,7 +829,6 @@ def admin_toggle_publish(contest_id):
     flash(f"Results for '{contest.name}' are now {'published' if contest.publish_results else 'hidden'}.", 'success')
     return redirect(url_for('admin_past_contests'))
 
-
 @app.route('/admin/contests/delete/<int:contest_id>')
 def admin_delete_contest(contest_id):
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -865,7 +837,6 @@ def admin_delete_contest(contest_id):
     db.session.commit()
     flash(f"Contest '{contest.name}' and all its registrations have been deleted.", 'success')
     return redirect(url_for('admin_manage_contests'))
-
 
 @app.route('/admin/register_admin', methods=['GET', 'POST'])
 def admin_register_admin():
@@ -883,7 +854,6 @@ def admin_register_admin():
             return redirect(url_for('admin_dashboard'))
     return render_admin_page(ADMIN_REGISTER_ADMIN_CONTENT, title="Register New Admin")
 
-
 @app.route('/admin/delete_student/<int:student_id>', methods=['POST'])
 def admin_delete_student(student_id):
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -893,7 +863,6 @@ def admin_delete_student(student_id):
     flash(f'Registration for {student.name} has been deleted.', 'success')
     return redirect(url_for('admin_dashboard'))
 
-
 @app.route('/admin/settings', methods=['GET', 'POST'])
 def admin_settings():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -901,17 +870,13 @@ def admin_settings():
     if request.method == 'POST':
         link = request.form.get(setting_key)
         setting = ContestSetting.query.filter_by(key=setting_key).first()
-        if setting:
-            setting.value = link
-        else:
-            db.session.add(ContestSetting(key=setting_key, value=link))
+        if setting: setting.value = link
+        else: db.session.add(ContestSetting(key=setting_key, value=link))
         db.session.commit()
         flash('Global settings saved successfully!', 'success')
         return redirect(url_for('admin_settings'))
     setting = ContestSetting.query.filter_by(key=setting_key).first()
-    return render_admin_page(ADMIN_SETTINGS_CONTENT, title="Global Settings",
-                             global_test_link=setting.value if setting else "")
-
+    return render_admin_page(ADMIN_SETTINGS_CONTENT, title="Global Settings", global_test_link=setting.value if setting else "")
 
 @app.route('/admin/email_settings', methods=['GET', 'POST'])
 def admin_email_settings():
@@ -919,18 +884,14 @@ def admin_email_settings():
     if request.method == 'POST':
         for key in ['mail_username', 'mail_app_password']:
             setting = ContestSetting.query.filter_by(key=key).first()
-            if setting:
-                setting.value = request.form.get(key)
-            else:
-                db.session.add(ContestSetting(key=key, value=request.form.get(key)))
+            if setting: setting.value = request.form.get(key)
+            else: db.session.add(ContestSetting(key=key, value=request.form.get(key)))
         db.session.commit()
         flash('Email settings saved successfully!', 'success')
         return redirect(url_for('admin_email_settings'))
-
-    settings = {s.key: s.value for s in
-                ContestSetting.query.filter(ContestSetting.key.in_(['mail_username', 'mail_app_password'])).all()}
+    
+    settings = {s.key: s.value for s in ContestSetting.query.filter(ContestSetting.key.in_(['mail_username', 'mail_app_password'])).all()}
     return render_admin_page(ADMIN_EMAIL_SETTINGS_CONTENT, title="Email Settings", email_settings=settings)
-
 
 def configure_mailer():
     username = ContestSetting.query.filter_by(key='mail_username').first()
@@ -942,11 +903,10 @@ def configure_mailer():
         return True
     return False
 
-
 @app.route('/admin/assign_and_email_all')
 def assign_and_email_all():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
-
+    
     if not configure_mailer():
         flash('Email settings are not configured. Please configure them first.', 'error')
         return redirect(url_for('admin_email_settings'))
@@ -960,7 +920,7 @@ def assign_and_email_all():
     if not students_to_notify:
         flash('No new accepted students to notify.', 'info')
         return redirect(url_for('admin_dashboard'))
-
+    
     count = 0
     with mail.connect() as conn:
         for student in students_to_notify:
@@ -979,7 +939,6 @@ def assign_and_email_all():
     flash(f'Assigned test link and sent notifications to {count} students.', 'success')
     return redirect(url_for('admin_dashboard'))
 
-
 @app.route('/admin/manual_registration', methods=['GET', 'POST'])
 def admin_manual_registration():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -988,9 +947,7 @@ def admin_manual_registration():
         if Student.query.filter_by(email=email, contest_id=contest_id).first():
             flash(f"Student with email {email} is already registered for this contest.", 'error')
         else:
-            new_student = Student(name=request.form['name'], email=email, college=request.form['college'],
-                                  branch=request.form['branch'], graduation_year=request.form['graduation_year'],
-                                  contest_id=contest_id)
+            new_student = Student(name=request.form['name'], email=email, college=request.form['college'], branch=request.form['branch'], graduation_year=request.form['graduation_year'], contest_id=contest_id)
             db.session.add(new_student)
             db.session.commit()
             flash(f"Student {new_student.name} registered successfully.", 'success')
@@ -998,24 +955,18 @@ def admin_manual_registration():
     contests = Contest.query.filter_by(is_active=True).all()
     return render_admin_page(ADMIN_MANUAL_REG_CONTENT, title="Manual Registration", contests=contests)
 
-
 @app.route('/admin/edit_student/<int:student_id>', methods=['GET', 'POST'])
 def admin_edit_student(student_id):
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
     student = Student.query.get_or_404(student_id)
     if request.method == 'POST':
-        student.name, student.email, student.college, student.branch, student.graduation_year, student.status = \
-        request.form['name'], request.form['email'], request.form['college'], request.form['branch'], request.form[
-            'graduation_year'], request.form['status']
+        student.name, student.email, student.college, student.branch, student.graduation_year, student.status = request.form['name'], request.form['email'], request.form['college'], request.form['branch'], request.form['graduation_year'], request.form['status']
         db.session.commit()
         flash(f"Details for {student.name} have been updated.", 'success')
         return redirect(url_for('admin_dashboard'))
-
-    past_performance = Student.query.filter(Student.email == student.email, Student.id != student.id,
-                                            Student.score.isnot(None)).all()
-    return render_admin_page(ADMIN_EDIT_STUDENT_CONTENT, title="Edit Student", student=student,
-                             branches=["CSE", "ECE", "EIE", "ME", "EEE", "Civil"], past_performance=past_performance)
-
+    
+    past_performance = Student.query.filter(Student.email == student.email, Student.id != student.id, Student.score.isnot(None)).all()
+    return render_admin_page(ADMIN_EDIT_STUDENT_CONTENT, title="Edit Student", student=student, branches=["CSE", "ECE", "EIE", "ME", "EEE", "Civil"], past_performance=past_performance)
 
 @app.route('/admin/update_status/<int:student_id>/<string:status>')
 def update_status(student_id, status):
@@ -1027,7 +978,6 @@ def update_status(student_id, status):
         flash(f"Student {student.name}'s application has been {status.lower()}.", 'success')
     return redirect(url_for('admin_dashboard'))
 
-
 @app.route('/admin/export/pdf')
 def admin_export_pdf():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -1037,14 +987,12 @@ def admin_export_pdf():
         return redirect(url_for('admin_dashboard'))
     pdf = PDF()
     pdf.add_page()
-    table_data = [('Rank', 'Name', 'Email', 'Branch', 'Score')] + [(i + 1, s.name, s.email, s.branch, str(s.score)) for
-                                                                   i, s in enumerate(students)]
+    table_data = [('Rank', 'Name', 'Email', 'Branch', 'Score')] + [(i + 1, s.name, s.email, s.branch, str(s.score)) for i, s in enumerate(students)]
     pdf.create_table(table_data, title='Student Score Leaderboard')
     response = make_response(pdf.output(dest='S').encode('latin-1'))
     response.headers.set('Content-Disposition', 'attachment', filename='student_scores.pdf')
     response.headers.set('Content-Type', 'application/pdf')
     return response
-
 
 @app.route('/admin/export/csv')
 def admin_export_csv():
@@ -1055,17 +1003,14 @@ def admin_export_csv():
         return redirect(url_for('admin_dashboard'))
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(
-        ['ID', 'Name', 'Email', 'College', 'Branch', 'Graduation Year', 'Status', 'Test Link', 'Score', 'Contest'])
+    writer.writerow(['ID', 'Name', 'Email', 'College', 'Branch', 'Graduation Year', 'Status', 'Test Link', 'Score', 'Contest'])
     for s in students:
-        writer.writerow([s.id, s.name, s.email, s.college, s.branch, s.graduation_year, s.status, s.test_link, s.score,
-                         s.contest.name])
+        writer.writerow([s.id, s.name, s.email, s.college, s.branch, s.graduation_year, s.status, s.test_link, s.score, s.contest.name])
     output.seek(0)
     response = make_response(output.getvalue())
     response.headers.set('Content-Disposition', 'attachment', filename='all_students.csv')
     response.headers.set('Content-Type', 'text/csv')
     return response
-
 
 @app.route('/admin/update_test_info/<int:student_id>', methods=['POST'])
 def update_test_info(student_id):
@@ -1076,13 +1021,12 @@ def update_test_info(student_id):
     student.score = int(score) if score and score.isdigit() else None
     db.session.commit()
     flash(f"Information for {student.name} has been updated.", 'success')
-
+    
     # Redirect back to the page the admin was on
     referrer = request.referrer
     if referrer and 'past_contests' in referrer:
         return redirect(url_for('admin_view_contest_results', contest_id=student.contest_id))
     return redirect(url_for('admin_dashboard'))
-
 
 @app.route('/student/login', methods=['GET', 'POST'])
 def student_login():
@@ -1093,17 +1037,15 @@ def student_login():
             session['student_email'] = student.email
             return redirect(url_for('student_dashboard'))
         flash('No application found with that email address.', 'error')
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', STUDENT_LOGIN_CONTENT),
-                                  title="Student Login")
-
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', STUDENT_LOGIN_CONTENT), title="Student Login")
 
 @app.route('/student/dashboard')
 def student_dashboard():
     if 'student_email' not in session: return redirect(url_for('student_login'))
-
+    
     email = session['student_email']
     registrations = Student.query.filter_by(email=email).order_by(Student.id.desc()).all()
-
+    
     if not registrations:
         session.pop('student_email', None)
         flash('No applications found for your email.', 'error')
@@ -1114,13 +1056,12 @@ def student_dashboard():
     past_performance = [r for r in registrations if r.score is not None]
 
     return render_template_string(
-        LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', STUDENT_DASHBOARD_CONTENT),
-        title="My Dashboard",
-        student=registrations[0],
+        LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', STUDENT_DASHBOARD_CONTENT), 
+        title="My Dashboard", 
+        student=registrations[0], 
         registrations=current_registrations,
         past_performance=past_performance
     )
-
 
 @app.route('/logout')
 def logout():
@@ -1128,7 +1069,6 @@ def logout():
     session.pop('student_email', None)
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
-
 
 def create_default_admin():
     with app.app_context():
@@ -1139,7 +1079,6 @@ def create_default_admin():
             db.session.add(admin)
             db.session.commit()
             print("Default admin created. Username: admin, Password: password")
-
 
 if __name__ == '__main__':
     instance_path = os.path.join(basedir, 'instance')
