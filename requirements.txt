@@ -1,0 +1,7 @@
+Flask 
+Flask-SQLAlchemy 
+Flask-Mail 
+fpdf2 
+Werkzeug 
+gunicorn 
+psycopg2-binary
