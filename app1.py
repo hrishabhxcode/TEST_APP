@@ -29,12 +29,17 @@ if not os.path.exists(instance_path):
 # --- Database Configuration ---
 # Use Render's PostgreSQL database URL if available, otherwise use local SQLite
 database_url = os.environ.get('DATABASE_URL')
+
 if database_url:
-    # The DATABASE_URL from Render starts with postgres://, but SQLAlchemy needs postgresql://
+    # Fix protocol prefix for SQLAlchemy if needed
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url.replace("postgres://", "postgresql://", 1)
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'contest_7s1t_user.db')
+    # fallback to local SQLite for dev
+    instance_path = os.path.abspath(os.path.dirname(__file__))
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'local.db')
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 
 
 # --- Mail Configuration (placeholders, will be updated dynamically) ---
@@ -1087,6 +1092,7 @@ if __name__ == '__main__':
         db.create_all()
     create_default_admin()
     app.run(debug=True)
+
 
 
 
