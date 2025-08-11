@@ -88,13 +88,6 @@ class ContestSetting(db.Model):
     key = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.String(300), nullable=True)
 
-class CoderOfTheWeek(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    branch = db.Column(db.String(50), nullable=False)
-    year = db.Column(db.String(20), nullable=False)
-    date_awarded = db.Column(db.Date, nullable=False, default=date.today)
-
 # --- PDF Generation Helper Class ---
 class PDF(FPDF):
     def header(self):
@@ -207,14 +200,6 @@ HOMEPAGE_CONTENT = """
                 </div>
             </div>
         </div>
-        
-        {% if coder_of_the_week %}
-        <div class="mt-12 max-w-lg mx-auto bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl shadow-2xl p-8 text-white text-center">
-            <h2 class="text-3xl font-bold">Coder of the Week</h2>
-            <p class="text-2xl mt-4">{{ coder_of_the_week.name }}</p>
-            <p class="text-lg">{{ coder_of_the_week.branch }} - {{ coder_of_the_week.year }}</p>
-        </div>
-        {% endif %}
 
         <div id="contests" class="mt-12 max-w-lg mx-auto grid gap-8 lg:grid-cols-3 lg:max-w-none">
             {% for contest in contests %}
@@ -827,12 +812,7 @@ GITHUB_CONTRIBUTION_CONTENT = """
 @app.route('/')
 def index():
     contests = Contest.query.filter_by(is_active=True).order_by(Contest.date.asc()).all()
-    coder_of_the_week = None
-    try:
-        coder_of_the_week = CoderOfTheWeek.query.order_by(CoderOfTheWeek.date_awarded.desc()).first()
-    except ProgrammingError:
-        print("CoderOfTheWeek table not found. It will be created on the next run.")
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', HOMEPAGE_CONTENT), title="Home", contests=contests, coder_of_the_week=coder_of_the_week)
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', HOMEPAGE_CONTENT), title="Home", contests=contests)
 
 @app.route('/syllabus')
 def syllabus():
