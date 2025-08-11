@@ -5,9 +5,10 @@
 import os
 import csv
 import io
+import random
+import string
 from flask import Flask, render_template_string, request, redirect, url_for, flash, session, make_response, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from fpdf import FPDF # Added for PDF generation
@@ -37,22 +38,21 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
-# --- Mail Configuration (placeholders, will be updated dynamically) ---
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = None
-app.config['MAIL_PASSWORD'] = None
-app.config['MAIL_DEFAULT_SENDER'] = None
-
 # --- Initialize Extensions ---
 db = SQLAlchemy(app)
-mail = Mail(app)
+
+# --- Helper Functions ---
+def generate_username(name):
+    """Generates a unique username from a given name."""
+    prefix = name[:4].lower()
+    suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+    return f"{prefix}{suffix}"
 
 # --- Database Models ---
 
 class Admin(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
@@ -71,6 +71,7 @@ class Contest(db.Model):
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), nullable=False)
     college = db.Column(db.String(150), nullable=False, default='NIT Nagaland')
     branch = db.Column(db.String(50), nullable=False)
@@ -373,7 +374,6 @@ ADMIN_LAYOUT_TEMPLATE = """
             <a href="{{ url_for('admin_manual_registration') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_manual_registration' %}bg-gray-900{% endif %}">Add Student</a>
             <a href="{{ url_for('admin_register_admin') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_register_admin' %}bg-gray-900{% endif %}">Register New Admin</a>
             <a href="{{ url_for('admin_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_settings' %}bg-gray-900{% endif %}">Global Settings</a>
-            <a href="{{ url_for('admin_email_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_email_settings' %}bg-gray-900{% endif %}">Email Settings</a>
             <a href="{{ url_for('admin_secret_key_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_secret_key_settings' %}bg-gray-900{% endif %}">Secret Key Settings</a>
         </nav>
     </div>
@@ -409,7 +409,9 @@ ADMIN_DASHBOARD_CONTENT = """
                     </select>
                 </div>
                 <div class="mt-4 flex justify-between items-center">
-                    <div><a href="{{ url_for('assign_and_email_all') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Assign & Email All Accepted</a></div>
+                    <div>
+                        <a href="{{ url_for('share_all_links') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Share All Test Links</a>
+                    </div>
                     <div class="flex space-x-2"><a href="{{ url_for('admin_export_csv') }}" class="bg-teal-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-teal-700">Export CSV</a><a href="{{ url_for('admin_export_pdf') }}" class="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700">Export PDF</a></div>
                 </div>
             </div>
@@ -420,7 +422,7 @@ ADMIN_DASHBOARD_CONTENT = """
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
             </tr></thead><tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {% for student in students %}<tr>
-                <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">{{ student.name }}</div><div class="text-xs text-gray-500 dark:text-gray-400">{{ student.email }}</div><div class="text-xs text-indigo-500 dark:text-indigo-400 font-semibold">{{ student.contest.name }}</div></td>
+                <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">{{ student.name }} ({{ student.username }})</div><div class="text-xs text-gray-500 dark:text-gray-400">{{ student.email }}</div><div class="text-xs text-indigo-500 dark:text-indigo-400 font-semibold">{{ student.contest.name }}</div></td>
                 <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-900 dark:text-white">{{ student.college }}</div><div class="text-xs text-gray-500 dark:text-gray-400">{{ student.branch }} - {{student.graduation_year}}</div></td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if student.status == 'Accepted' %} bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 {% elif student.status == 'Denied' %} bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300 {% else %} bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 {% endif %}">{{ student.status }}</span></td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -526,9 +528,10 @@ ADMIN_PAST_CONTESTS_CONTENT = """
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
             <a href="{{ url_for('admin_view_contest_results', contest_id=contest.id) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">View/Edit Results</a>
-            <a href="{{ url_for('admin_toggle_publish', contest_id=contest.id) }}" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+            <a href="{{ url_for('admin_toggle_publish', contest_id=contest.id) }}" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mr-3">
                 {{ 'Unpublish' if contest.publish_results else 'Publish' }}
             </a>
+            <a href="{{ url_for('admin_delete_contest', contest_id=contest.id) }}" onclick="return confirm('Are you sure? This will delete the past contest and all associated registrations permanently.')" class="text-red-600 hover:text-red-900 ml-3">Delete</a>
         </td>
     </tr>{% else %}<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No past contests found.</td></tr>{% endfor %}
     </tbody></table></div>
@@ -564,8 +567,8 @@ ADMIN_REGISTER_ADMIN_CONTENT = """
 <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Register New Admin</h1>
 <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-lg mx-auto">
     <form action="{{ url_for('admin_register_admin') }}" method="POST" class="space-y-6">
-        <div><label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-        <input type="text" name="username" id="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
+        <div><label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
+        <input type="text" name="name" id="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
         <div><label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
         <input type="password" name="password" id="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
         <div class="flex justify-end"><button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-md font-medium hover:bg-indigo-700">Create Admin</button></div>
@@ -579,32 +582,8 @@ ADMIN_SETTINGS_CONTENT = """
     <form action="{{ url_for('admin_settings') }}" method="POST" class="space-y-6">
         <div><label for="global_test_link" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Global HackerRank Test Link</label>
         <input type="url" name="global_test_link" id="global_test_link" value="{{ global_test_link or '' }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">This link will be assigned to all accepted students when you use the "Assign & Email All" feature.</p></div>
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">This link will be assigned to all accepted students when you use the "Share All Test Links" feature.</p></div>
         <div class="flex justify-end"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Settings</button></div>
-    </form>
-</div>
-"""
-
-ADMIN_EMAIL_SETTINGS_CONTENT = """
-<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Email Settings</h1>
-<div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
-    <div class="prose prose-sm max-w-none text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-gray-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-4 mb-6">
-        <h4>Instructions for Sending Email via Gmail</h4>
-        <ol>
-            <li><strong>Enable 2-Step Verification</strong> on your Google Account.</li>
-            <li>Go to your Google Account's <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-blue-600 hover:underline">App Passwords</a> page.</li>
-            <li>Select "Mail" for the app and "Other (Custom name)" for the device. Name it "Coding Contest App".</li>
-            <li>Copy the generated 16-digit password.</li>
-            <li>Paste your full Gmail address and the 16-digit App Password below and save.</li>
-        </ol>
-        <p>This allows the application to send emails securely without storing your main password.</p>
-    </div>
-    <form action="{{ url_for('admin_email_settings') }}" method="POST" class="space-y-6">
-        <div><label for="mail_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Your Gmail Address</label>
-        <input type="email" name="mail_username" id="mail_username" value="{{ email_settings.get('mail_username', '') }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
-        <div><label for="mail_app_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Google App Password (16 digits)</label>
-        <input type="password" name="mail_app_password" id="mail_app_password" value="{{ email_settings.get('mail_app_password', '') }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
-        <div class="flex justify-end"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Email Settings</button></div>
     </form>
 </div>
 """
@@ -672,7 +651,7 @@ STUDENT_LOGIN_CONTENT = """
 
 STUDENT_DASHBOARD_CONTENT = """
 <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8"><div class="bg-white dark:bg-gray-800 shadow-xl rounded-lg overflow-hidden">
-<div class="p-8"><h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {{ student.name }}!</h2>
+<div class="p-8"><h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {{ student.name }} ({{ student.username }})!</h2>
 <p class="mt-2 text-gray-600 dark:text-gray-400">Here are the current statuses of your applications.</p>
 {% for reg in registrations %}
 {% if reg.status != 'Archived' %}
@@ -721,7 +700,7 @@ ADMIN_REGISTER_CONTENT = """
 <div><h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Register New Admin</h2></div>
 <form class="mt-8 space-y-6" action="{{ url_for('admin_register') }}" method="POST">
     <div class="rounded-md shadow-sm -space-y-px">
-        <div><label for="username" class="sr-only">Username</label><input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username"></div>
+        <div><label for="name" class="sr-only">Full Name</label><input id="name" name="name" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Full Name"></div>
         <div><label for="password" class="sr-only">Password</label><input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password"></div>
         <div><label for="secret_key" class="sr-only">Secret Key</label><input id="secret_key" name="secret_key" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Secret Key"></div>
     </div>
@@ -758,6 +737,39 @@ ADMIN_SECRET_KEY_SETTINGS_CONTENT = """
 </div>
 """
 
+SHARE_LINKS_CONTENT = """
+<div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Test Links for {{ contest.name }}</h1>
+    <p class="text-gray-600 dark:text-gray-400 mb-6">Share this page with all verified students for the contest.</p>
+    <div class="bg-white dark:bg-gray-800 shadow-xl rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Test Link</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for student in students %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ student.name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 dark:text-indigo-400">
+                            <a href="{{ student.test_link }}" target="_blank">{{ student.test_link }}</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="2" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No verified students with test links for this contest yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+"""
+
 # --- Route Definitions ---
 
 @app.route('/')
@@ -788,9 +800,14 @@ def register(contest_id):
             flash('You have already registered for this contest with this email address.', 'error')
             return redirect(url_for('register', contest_id=contest.id))
         
+        name = request.form['name']
         new_student = Student(
-            name=request.form['name'], email=email, college=request.form['college'],
-            branch=request.form['branch'], graduation_year=request.form['graduation_year'],
+            name=name,
+            username=generate_username(name),
+            email=email,
+            college=request.form['college'],
+            branch=request.form['branch'],
+            graduation_year=request.form['graduation_year'],
             contest_id=contest.id
         )
         db.session.add(new_student)
@@ -816,15 +833,16 @@ def admin_register():
     if request.method == 'POST':
         secret_key_setting = ContestSetting.query.filter_by(key='admin_secret_key').first()
         if secret_key_setting and request.form.get('secret_key') == secret_key_setting.value:
-            username = request.form['username']
+            name = request.form['name']
+            username = generate_username(name)
             if Admin.query.filter_by(username=username).first():
                 flash('Username already exists.', 'error')
             else:
-                new_admin = Admin(username=username)
+                new_admin = Admin(name=name, username=username)
                 new_admin.set_password(request.form['password'])
                 db.session.add(new_admin)
                 db.session.commit()
-                flash(f'Admin "{username}" created successfully. You can now log in.', 'success')
+                flash(f'Admin "{name}" with username "{username}" created successfully. You can now log in.', 'success')
                 return redirect(url_for('admin_login'))
         else:
             flash('Invalid secret key.', 'error')
@@ -924,21 +942,25 @@ def admin_delete_contest(contest_id):
     db.session.delete(contest)
     db.session.commit()
     flash(f"Contest '{contest.name}' and all its registrations have been deleted.", 'success')
+    referrer = request.referrer
+    if referrer and 'past_contests' in referrer:
+        return redirect(url_for('admin_past_contests'))
     return redirect(url_for('admin_manage_contests'))
 
 @app.route('/admin/register_admin', methods=['GET', 'POST'])
 def admin_register_admin():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
     if request.method == 'POST':
-        username = request.form['username']
+        name = request.form['name']
+        username = generate_username(name)
         if Admin.query.filter_by(username=username).first():
             flash('Username already exists.', 'error')
         else:
-            new_admin = Admin(username=username)
+            new_admin = Admin(name=name, username=username)
             new_admin.set_password(request.form['password'])
             db.session.add(new_admin)
             db.session.commit()
-            flash(f'Admin "{username}" created successfully.', 'success')
+            flash(f'Admin "{name}" with username "{username}" created successfully.', 'success')
             return redirect(url_for('admin_dashboard'))
     return render_admin_page(ADMIN_REGISTER_ADMIN_CONTENT, title="Register New Admin")
 
@@ -966,21 +988,6 @@ def admin_settings():
     setting = ContestSetting.query.filter_by(key=setting_key).first()
     return render_admin_page(ADMIN_SETTINGS_CONTENT, title="Global Settings", global_test_link=setting.value if setting else "")
 
-@app.route('/admin/email_settings', methods=['GET', 'POST'])
-def admin_email_settings():
-    if 'admin_id' not in session: return redirect(url_for('admin_login'))
-    if request.method == 'POST':
-        for key in ['mail_username', 'mail_app_password']:
-            setting = ContestSetting.query.filter_by(key=key).first()
-            if setting: setting.value = request.form.get(key)
-            else: db.session.add(ContestSetting(key=key, value=request.form.get(key)))
-        db.session.commit()
-        flash('Email settings saved successfully!', 'success')
-        return redirect(url_for('admin_email_settings'))
-    
-    settings = {s.key: s.value for s in ContestSetting.query.filter(ContestSetting.key.in_(['mail_username', 'mail_app_password'])).all()}
-    return render_admin_page(ADMIN_EMAIL_SETTINGS_CONTENT, title="Email Settings", email_settings=settings)
-
 @app.route('/admin/secret_key_settings', methods=['GET', 'POST'])
 def admin_secret_key_settings():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -1004,51 +1011,30 @@ def admin_secret_key_settings():
     secret_key = setting.value if setting else None
     return render_admin_page(ADMIN_SECRET_KEY_SETTINGS_CONTENT, title="Secret Key Settings", secret_key=secret_key)
 
-def configure_mailer():
-    username = ContestSetting.query.filter_by(key='mail_username').first()
-    password = ContestSetting.query.filter_by(key='mail_app_password').first()
-    if username and password and username.value and password.value:
-        app.config['MAIL_USERNAME'] = username.value
-        app.config['MAIL_DEFAULT_SENDER'] = username.value
-        app.config['MAIL_PASSWORD'] = password.value
-        return True
-    return False
-
-@app.route('/admin/assign_and_email_all')
-def assign_and_email_all():
+@app.route('/admin/share_all_links')
+def share_all_links():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
     
-    if not configure_mailer():
-        flash('Email settings are not configured. Please configure them first.', 'error')
-        return redirect(url_for('admin_email_settings'))
-
     setting = ContestSetting.query.filter_by(key='global_test_link').first()
     if not setting or not setting.value:
         flash('Please set a global test link in Global Settings first.', 'error')
         return redirect(url_for('admin_settings'))
 
-    students_to_notify = Student.query.filter_by(status='Accepted', test_link=None).all()
-    if not students_to_notify:
-        flash('No new accepted students to notify.', 'info')
-        return redirect(url_for('admin_dashboard'))
-    
-    count = 0
-    with mail.connect() as conn:
-        for student in students_to_notify:
+    students_to_notify = Student.query.filter_by(status='Accepted').all()
+    for student in students_to_notify:
+        if not student.test_link:
             student.test_link = setting.value
-            subject = f"Your Coding Contest Link: {student.contest.name}"
-            body = f"Hello {student.name},\n\nCongratulations! Your application for {student.contest.name} has been accepted.\n\nPlease use the following link to access your test:\n{student.test_link}\n\nGood luck!\nThe CodeFest Team"
-            msg = Message(subject, recipients=[student.email], body=body)
-            try:
-                conn.send(msg)
-                count += 1
-            except Exception as e:
-                print(f"Failed to send email to {student.email}: {e}")
-                flash(f"Failed to send email to {student.email}. Check credentials and connection.", "error")
-
     db.session.commit()
-    flash(f'Assigned test link and sent notifications to {count} students.', 'success')
+
+    flash(f'Assigned test links to all verified students. You can now share the links from the contest-specific pages.', 'success')
     return redirect(url_for('admin_dashboard'))
+
+@app.route('/share_links/<int:contest_id>')
+def share_links(contest_id):
+    contest = Contest.query.get_or_404(contest_id)
+    students = Student.query.filter_by(contest_id=contest.id, status='Accepted').all()
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', SHARE_LINKS_CONTENT), title=f"Test Links for {contest.name}", contest=contest, students=students)
+
 
 @app.route('/admin/manual_registration', methods=['GET', 'POST'])
 def admin_manual_registration():
@@ -1058,7 +1044,16 @@ def admin_manual_registration():
         if Student.query.filter_by(email=email, contest_id=contest_id).first():
             flash(f"Student with email {email} is already registered for this contest.", 'error')
         else:
-            new_student = Student(name=request.form['name'], email=email, college=request.form['college'], branch=request.form['branch'], graduation_year=request.form['graduation_year'], contest_id=contest_id)
+            name = request.form['name']
+            new_student = Student(
+                name=name,
+                username=generate_username(name),
+                email=email,
+                college=request.form['college'],
+                branch=request.form['branch'],
+                graduation_year=request.form['graduation_year'],
+                contest_id=contest_id
+            )
             db.session.add(new_student)
             db.session.commit()
             flash(f"Student {new_student.name} registered successfully.", 'success')
@@ -1114,9 +1109,9 @@ def admin_export_csv():
         return redirect(url_for('admin_dashboard'))
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', 'Name', 'Email', 'College', 'Branch', 'Graduation Year', 'Status', 'Test Link', 'Score', 'Contest'])
+    writer.writerow(['ID', 'Name', 'Username', 'Email', 'College', 'Branch', 'Graduation Year', 'Status', 'Test Link', 'Score', 'Contest'])
     for s in students:
-        writer.writerow([s.id, s.name, s.email, s.college, s.branch, s.graduation_year, s.status, s.test_link, s.score, s.contest.name])
+        writer.writerow([s.id, s.name, s.username, s.email, s.college, s.branch, s.graduation_year, s.status, s.test_link, s.score, s.contest.name])
     output.seek(0)
     response = make_response(output.getvalue())
     response.headers.set('Content-Disposition', 'attachment', filename='all_students.csv')
@@ -1185,11 +1180,11 @@ def create_default_admin():
     with app.app_context():
         if not Admin.query.first():
             print("Creating default admin user...")
-            admin = Admin(username='admin')
-            admin.set_password('password')
+            admin = Admin(name='Hrishabh', username='hris1234')
+            admin.set_password('hrishabhxcode')
             db.session.add(admin)
             db.session.commit()
-            print("Default admin created. Username: admin, Password: password")
+            print("Default admin created. Username: hris1234, Password: hrishabhxcode")
         
         if not ContestSetting.query.filter_by(key='admin_secret_key').first():
             print("Creating default admin secret key...")
