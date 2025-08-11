@@ -420,7 +420,7 @@ ADMIN_DASHBOARD_CONTENT = """
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-5 gap-4">
                     <select name="contest_id" onchange="this.form.submit()" class="md:col-span-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                         <option value="">All Contests</option>
-                        {% for contest in all_contests %}<option value="{{ contest.id }}" {% if request.args.get('contest_id')|int == contest.id %}selected{% endif %}>{{ contest.name }}</option>{% endfor %}
+                        {% for contest in all_contests %}<option value="{{ contest.id }}" {% if request.args.get('contest_id') and request.args.get('contest_id')|int == contest.id %}selected{% endif %}>{{ contest.name }}</option>{% endfor %}
                     </select>
                     <input type="text" name="search" placeholder="Search by Name/Email..." value="{{ request.args.get('search', '') }}" onchange="this.form.submit()" class="md:col-span-2 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     <select name="branch" onchange="this.form.submit()" class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
