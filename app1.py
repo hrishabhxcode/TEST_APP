@@ -53,7 +53,6 @@ def generate_username(name):
 
 class Admin(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
@@ -575,8 +574,8 @@ ADMIN_REGISTER_ADMIN_CONTENT = """
 <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Register New Admin</h1>
 <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-lg mx-auto">
     <form action="{{ url_for('admin_register_admin') }}" method="POST" class="space-y-6">
-        <div><label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
-        <input type="text" name="name" id="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
+        <div><label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+        <input type="text" name="username" id="username" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
         <div><label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
         <input type="password" name="password" id="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
         <div class="flex justify-end"><button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-md font-medium hover:bg-indigo-700">Create Admin</button></div>
@@ -708,7 +707,7 @@ ADMIN_REGISTER_CONTENT = """
 <div><h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Register New Admin</h2></div>
 <form class="mt-8 space-y-6" action="{{ url_for('admin_register') }}" method="POST">
     <div class="rounded-md shadow-sm -space-y-px">
-        <div><label for="name" class="sr-only">Full Name</label><input id="name" name="name" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Full Name"></div>
+        <div><label for="username" class="sr-only">Username</label><input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username"></div>
         <div><label for="password" class="sr-only">Password</label><input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password"></div>
         <div><label for="secret_key" class="sr-only">Secret Key</label><input id="secret_key" name="secret_key" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Secret Key"></div>
     </div>
@@ -874,16 +873,15 @@ def admin_login():
 def admin_register():
     if request.method == 'POST':
         if request.form.get('secret_key') == 'HRISHABHX2025':
-            name = request.form['name']
-            username = generate_username(name)
+            username = request.form['username']
             if Admin.query.filter_by(username=username).first():
                 flash('Username already exists.', 'error')
             else:
-                new_admin = Admin(name=name, username=username)
+                new_admin = Admin(username=username)
                 new_admin.set_password(request.form['password'])
                 db.session.add(new_admin)
                 db.session.commit()
-                flash(f'Admin "{name}" with username "{username}" created successfully. You can now log in.', 'success')
+                flash(f'Admin with username "{username}" created successfully. You can now log in.', 'success')
                 return redirect(url_for('admin_login'))
         else:
             flash('Invalid secret key.', 'error')
@@ -992,16 +990,15 @@ def admin_delete_contest(contest_id):
 def admin_register_admin():
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
     if request.method == 'POST':
-        name = request.form['name']
-        username = generate_username(name)
+        username = request.form['username']
         if Admin.query.filter_by(username=username).first():
             flash('Username already exists.', 'error')
         else:
-            new_admin = Admin(name=name, username=username)
+            new_admin = Admin(username=username)
             new_admin.set_password(request.form['password'])
             db.session.add(new_admin)
             db.session.commit()
-            flash(f'Admin "{name}" with username "{username}" created successfully.', 'success')
+            flash(f'Admin with username "{username}" created successfully.', 'success')
             return redirect(url_for('admin_dashboard'))
     return render_admin_page(ADMIN_REGISTER_ADMIN_CONTENT, title="Register New Admin")
 
@@ -1235,11 +1232,11 @@ def create_default_admin():
     with app.app_context():
         if not Admin.query.first():
             print("Creating default admin user...")
-            admin = Admin(name='Hrishabh', username='hris1234')
+            admin = Admin(username='hrishabh')
             admin.set_password('hrishabhxcode')
             db.session.add(admin)
             db.session.commit()
-            print("Default admin created. Username: hris1234, Password: hrishabhxcode")
+            print("Default admin created. Username: hrishabh, Password: hrishabhxcode")
 
 if __name__ == '__main__':
     instance_path = os.path.join(basedir, 'instance')
