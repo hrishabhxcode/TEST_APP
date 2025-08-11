@@ -353,7 +353,13 @@ ADMIN_LOGIN_CONTENT = """
 <form class="mt-8 space-y-6" action="{{ url_for('admin_login') }}" method="POST"><div class="rounded-md shadow-sm -space-y-px">
 <div><label for="username" class="sr-only">Username</label><input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username"></div>
 <div><label for="password" class="sr-only">Password</label><input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password"></div>
-</div><div><button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Sign in</button></div></form>
+</div><div><button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Sign in</button></div>
+<div class="text-sm text-center mt-4">
+    <a href="{{ url_for('admin_register') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
+        Don't have an account? Register
+    </a>
+</div>
+</form>
 </div></div>"""
 
 ADMIN_LAYOUT_TEMPLATE = """
@@ -419,13 +425,33 @@ ADMIN_DASHBOARD_CONTENT = """
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     {% if student.status == 'Pending' %}<a href="{{ url_for('update_status', student_id=student.id, status='Accepted') }}" class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-green-600 hover:bg-green-700">Accept</a>
                     <a href="{{ url_for('update_status', student_id=student.id, status='Denied') }}" class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-red-600 hover:bg-red-700 ml-2">Deny</a>
-                    {% elif student.status == 'Accepted' %}<form action="{{ url_for('update_test_info', student_id=student.id) }}" method="post" class="flex items-center space-x-2"><input type="url" name="test_link" id="test-link-{{ student.id }}" placeholder="HackerRank Link" value="{{ student.test_link or '' }}" class="w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md text-xs"><input type="number" name="score" placeholder="Score" value="{{ student.score or '' }}" class="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md text-xs"><button type="submit" class="px-2 py-1 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 text-xs">Save</button></form>
+                    {% elif student.status == 'Accepted' %}
+                    <form action="{{ url_for('update_test_info', student_id=student.id) }}" method="post" class="flex items-center space-x-2">
+                        <input type="url" name="test_link" id="test-link-{{ student.id }}" placeholder="HackerRank Link" value="{{ student.test_link or '' }}" class="w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md text-xs">
+                        <input type="number" name="score" placeholder="Score" value="{{ student.score or '' }}" class="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md text-xs">
+                        <button type="submit" class="px-2 py-1 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 text-xs">Save</button>
+                        <button type="button" onclick="copyLink('test-link-{{ student.id }}', this)" class="px-2 py-1 bg-gray-500 text-white rounded-md hover:bg-gray-600 text-xs">Copy Link</button>
+                    </form>
                     {% else %}<span class="text-gray-400 dark:text-gray-500 text-sm">No action</span>{% endif %}
                     <a href="{{ url_for('admin_edit_student', student_id=student.id) }}" class="text-indigo-600 hover:text-indigo-900 ml-4">Edit</a>
                     <form action="{{ url_for('admin_delete_student', student_id=student.id) }}" method="POST" class="inline-block ml-2"><button type="submit" class="text-red-600 hover:text-red-900" onclick="return confirm('Are you sure you want to delete this registration permanently?')">Delete</button></form>
                 </td>
             </tr>{% else %}<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No students match the current filters.</td></tr>{% endfor %}
             </tbody></table></div></form></div></div>
+<script>
+function copyLink(elementId, button) {
+    var copyText = document.getElementById(elementId);
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); /* For mobile devices */
+    navigator.clipboard.writeText(copyText.value);
+    
+    var originalText = button.innerHTML;
+    button.innerHTML = "Copied!";
+    setTimeout(function() {
+        button.innerHTML = originalText;
+    }, 2000);
+}
+</script>
 """
 
 ADMIN_MANAGE_CONTESTS_CONTENT = """
@@ -689,6 +715,20 @@ STUDENT_DASHBOARD_CONTENT = """
 </div></div></div>
 """
 
+ADMIN_REGISTER_CONTENT = """
+<div class="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8"><div class="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
+<div><h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Register New Admin</h2></div>
+<form class="mt-8 space-y-6" action="{{ url_for('admin_register') }}" method="POST">
+    <div class="rounded-md shadow-sm -space-y-px">
+        <div><label for="username" class="sr-only">Username</label><input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username"></div>
+        <div><label for="password" class="sr-only">Password</label><input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password"></div>
+        <div><label for="secret_key" class="sr-only">Secret Key</label><input id="secret_key" name="secret_key" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Secret Key"></div>
+    </div>
+    <div><button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Register</button></div>
+</form>
+</div></div>
+"""
+
 # --- Route Definitions ---
 
 @app.route('/')
@@ -741,6 +781,24 @@ def admin_login():
             return redirect(url_for('admin_dashboard'))
         flash('Invalid username or password.', 'error')
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login")
+
+@app.route('/admin/register', methods=['GET', 'POST'])
+def admin_register():
+    if request.method == 'POST':
+        if request.form.get('secret_key') == 'HRISHABHX2025':
+            username = request.form['username']
+            if Admin.query.filter_by(username=username).first():
+                flash('Username already exists.', 'error')
+            else:
+                new_admin = Admin(username=username)
+                new_admin.set_password(request.form['password'])
+                db.session.add(new_admin)
+                db.session.commit()
+                flash(f'Admin "{username}" created successfully. You can now log in.', 'success')
+                return redirect(url_for('admin_login'))
+        else:
+            flash('Invalid secret key.', 'error')
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_REGISTER_CONTENT), title="Admin Registration")
 
 def render_admin_page(content, **kwargs):
     base = LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LAYOUT_TEMPLATE)
