@@ -111,6 +111,10 @@ class PDF(FPDF):
             for i, datum in enumerate(row): self.cell(col_widths[table_data[0][i]], line_height, str(datum), border=1, align='L')
             self.ln(line_height)
 
+# --- Create database tables if they don't exist ---
+with app.app_context():
+    db.create_all()
+
 # --- HTML Templates ---
 
 LAYOUT_TEMPLATE = """
