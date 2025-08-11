@@ -42,13 +42,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # --- Initialize Extensions ---
 db = SQLAlchemy(app)
 
-# --- Helper Functions ---
-def generate_username(name):
-    """Generates a unique username from a given name."""
-    prefix = name[:4].lower()
-    suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
-    return f"{prefix}{suffix}"
-
 # --- Database Models ---
 
 class Admin(db.Model):
@@ -71,7 +64,6 @@ class Contest(db.Model):
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), nullable=False)
     college = db.Column(db.String(150), nullable=False, default='NIT Nagaland')
     branch = db.Column(db.String(50), nullable=False)
@@ -429,7 +421,7 @@ ADMIN_DASHBOARD_CONTENT = """
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
             </tr></thead><tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {% for student in students %}<tr>
-                <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">{{ student.name }} ({{ student.username }})</div><div class="text-xs text-gray-500 dark:text-gray-400">{{ student.email }}</div><div class="text-xs text-indigo-500 dark:text-indigo-400 font-semibold">{{ student.contest.name }}</div></td>
+                <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">{{ student.name }}</div><div class="text-xs text-gray-500 dark:text-gray-400">{{ student.email }}</div><div class="text-xs text-indigo-500 dark:text-indigo-400 font-semibold">{{ student.contest.name }}</div></td>
                 <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-900 dark:text-white">{{ student.college }}</div><div class="text-xs text-gray-500 dark:text-gray-400">{{ student.branch }} - {{student.graduation_year}}</div></td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if student.status == 'Accepted' %} bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 {% elif student.status == 'Denied' %} bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300 {% else %} bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 {% endif %}">{{ student.status }}</span></td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -658,7 +650,7 @@ STUDENT_LOGIN_CONTENT = """
 
 STUDENT_DASHBOARD_CONTENT = """
 <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8"><div class="bg-white dark:bg-gray-800 shadow-xl rounded-lg overflow-hidden">
-<div class="p-8"><h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {{ student.name }} ({{ student.username }})!</h2>
+<div class="p-8"><h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {{ student.name }}!</h2>
 <p class="mt-2 text-gray-600 dark:text-gray-400">Here are the current statuses of your applications.</p>
 {% for reg in registrations %}
 {% if reg.status != 'Archived' %}
@@ -1161,9 +1153,9 @@ def admin_export_csv():
         return redirect(url_for('admin_dashboard'))
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', 'Name', 'Username', 'Email', 'College', 'Branch', 'Graduation Year', 'Status', 'Test Link', 'Score', 'Contest'])
+    writer.writerow(['ID', 'Name', 'Email', 'College', 'Branch', 'Graduation Year', 'Status', 'Test Link', 'Score', 'Contest'])
     for s in students:
-        writer.writerow([s.id, s.name, s.username, s.email, s.college, s.branch, s.graduation_year, s.status, s.test_link, s.score, s.contest.name])
+        writer.writerow([s.id, s.name, s.email, s.college, s.branch, s.graduation_year, s.status, s.test_link, s.score, s.contest.name])
     output.seek(0)
     response = make_response(output.getvalue())
     response.headers.set('Content-Disposition', 'attachment', filename='all_students.csv')
