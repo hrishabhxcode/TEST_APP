@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from fpdf import FPDF # Added for PDF generation
 from sqlalchemy import or_
+from sqlalchemy.exc import ProgrammingError
 from datetime import datetime, time, date
 
 # --- App Configuration ---
@@ -826,7 +827,11 @@ GITHUB_CONTRIBUTION_CONTENT = """
 @app.route('/')
 def index():
     contests = Contest.query.filter_by(is_active=True).order_by(Contest.date.asc()).all()
-    coder_of_the_week = CoderOfTheWeek.query.order_by(CoderOfTheWeek.date_awarded.desc()).first()
+    coder_of_the_week = None
+    try:
+        coder_of_the_week = CoderOfTheWeek.query.order_by(CoderOfTheWeek.date_awarded.desc()).first()
+    except ProgrammingError:
+        print("CoderOfTheWeek table not found. It will be created on the next run.")
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', HOMEPAGE_CONTENT), title="Home", contests=contests, coder_of_the_week=coder_of_the_week)
 
 @app.route('/syllabus')
