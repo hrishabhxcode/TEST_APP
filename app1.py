@@ -87,6 +87,13 @@ class ContestSetting(db.Model):
     key = db.Column(db.String(50), unique=True, nullable=False)
     value = db.Column(db.String(300), nullable=True)
 
+class CoderOfTheWeek(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    branch = db.Column(db.String(50), nullable=False)
+    year = db.Column(db.String(20), nullable=False)
+    date_awarded = db.Column(db.Date, nullable=False, default=date.today)
+
 # --- PDF Generation Helper Class ---
 class PDF(FPDF):
     def header(self):
@@ -131,6 +138,7 @@ LAYOUT_TEMPLATE = """
 <a href="{{ url_for('logout') }}" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium">Logout</a>
 {% else %}<a href="{{ url_for('index') }}" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium">Home</a>
 <a href="{{ url_for('syllabus') }}" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium">Syllabus</a>
+<a href="{{ url_for('github_contribution') }}" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium">GitHub Contribution</a>
 <a href="{{ url_for('student_login') }}" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium">Student Login</a>
 <a href="{{ url_for('admin_login') }}" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition-colors">Admin Login</a>
 {% endif %}
@@ -194,6 +202,15 @@ HOMEPAGE_CONTENT = """
                 </div>
             </div>
         </div>
+        
+        {% if coder_of_the_week %}
+        <div class="mt-12 max-w-lg mx-auto bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl shadow-2xl p-8 text-white text-center">
+            <h2 class="text-3xl font-bold">Coder of the Week</h2>
+            <p class="text-2xl mt-4">{{ coder_of_the_week.name }}</p>
+            <p class="text-lg">{{ coder_of_the_week.branch }} - {{ coder_of_the_week.year }}</p>
+        </div>
+        {% endif %}
+
         <div id="contests" class="mt-12 max-w-lg mx-auto grid gap-8 lg:grid-cols-3 lg:max-w-none">
             {% for contest in contests %}
             <div class="flex flex-col rounded-lg shadow-lg overflow-hidden transform hover:-translate-y-1 transition-transform duration-300">
@@ -375,6 +392,8 @@ ADMIN_LAYOUT_TEMPLATE = """
             <a href="{{ url_for('admin_register_admin') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_register_admin' %}bg-gray-900{% endif %}">Register New Admin</a>
             <a href="{{ url_for('admin_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_settings' %}bg-gray-900{% endif %}">Global Settings</a>
             <a href="{{ url_for('admin_secret_key_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_secret_key_settings' %}bg-gray-900{% endif %}">Secret Key Settings</a>
+            <a href="{{ url_for('admin_coder_of_the_week') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_coder_of_the_week' %}bg-gray-900{% endif %}">Coder of the Week</a>
+            <a href="{{ url_for('admin_github_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_github_settings' %}bg-gray-900{% endif %}">GitHub Settings</a>
         </nav>
     </div>
     <div class="flex-1 p-4 sm:p-10 overflow-y-auto">{% block admin_content %}{% endblock %}</div>
@@ -770,12 +789,70 @@ SHARE_LINKS_CONTENT = """
 </div>
 """
 
+ADMIN_CODER_OF_THE_WEEK_CONTENT = """
+<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Coder of the Week</h1>
+<div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
+    <form action="{{ url_for('admin_coder_of_the_week') }}" method="POST" class="space-y-6">
+        <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+            <input type="text" name="name" id="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <div>
+            <label for="branch" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Branch</label>
+            <input type="text" name="branch" id="branch" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <div>
+            <label for="year" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Year</label>
+            <input type="text" name="year" id="year" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <div class="flex justify-end">
+            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Publish</button>
+        </div>
+    </form>
+</div>
+"""
+
+ADMIN_GITHUB_SETTINGS_CONTENT = """
+<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">GitHub Contribution Settings</h1>
+<div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
+    <form action="{{ url_for('admin_github_settings') }}" method="POST" class="space-y-6">
+        <div>
+            <label for="github_repo_link" class="block text-sm font-medium text-gray-700 dark:text-gray-300">GitHub Repository Link</label>
+            <input type="url" name="github_repo_link" id="github_repo_link" value="{{ github_repo_link or '' }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">This link will be displayed on the GitHub Contribution page for students.</p>
+        </div>
+        <div class="flex justify-end">
+            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Link</button>
+        </div>
+    </form>
+</div>
+"""
+
+GITHUB_CONTRIBUTION_CONTENT = """
+<div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <h1 class="text-4xl font-extrabold text-center text-gray-900 dark:text-white mb-12">GitHub Contribution</h1>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
+        {% if github_repo_link %}
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Contribute to Our Project</h2>
+            <p class="mt-4 text-gray-600 dark:text-gray-400">We encourage you to contribute to our open-source project. Click the link below to visit our GitHub repository.</p>
+            <a href="{{ github_repo_link }}" target="_blank" class="mt-6 inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                Go to GitHub Repository
+            </a>
+        {% else %}
+            <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-200">No GitHub repository link available at the moment.</h2>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Please check back later!</p>
+        {% endif %}
+    </div>
+</div>
+"""
+
 # --- Route Definitions ---
 
 @app.route('/')
 def index():
     contests = Contest.query.filter_by(is_active=True).order_by(Contest.date.asc()).all()
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', HOMEPAGE_CONTENT), title="Home", contests=contests)
+    coder_of_the_week = CoderOfTheWeek.query.order_by(CoderOfTheWeek.date_awarded.desc()).first()
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', HOMEPAGE_CONTENT), title="Home", contests=contests, coder_of_the_week=coder_of_the_week)
 
 @app.route('/syllabus')
 def syllabus():
@@ -786,6 +863,11 @@ def syllabus():
 def public_results():
     contests = Contest.query.filter_by(publish_results=True).order_by(Contest.date.desc()).all()
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', PUBLIC_RESULTS_CONTENT), title="Past Contest Results", contests=contests)
+    
+@app.route('/github_contribution')
+def github_contribution():
+    github_repo_link = ContestSetting.query.filter_by(key='github_repo_link').first()
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', GITHUB_CONTRIBUTION_CONTENT), title="GitHub Contribution", github_repo_link=github_repo_link.value if github_repo_link else None)
 
 @app.route('/register/<int:contest_id>', methods=['GET', 'POST'])
 def register(contest_id):
@@ -994,7 +1076,7 @@ def admin_secret_key_settings():
     
     if request.method == 'POST':
         password = request.form.get('password')
-        if password == 'HRISHABHXCODE':
+        if password == 'HRISHABHX2025':
             new_secret_key = request.form.get('new_secret_key')
             setting = ContestSetting.query.filter_by(key='admin_secret_key').first()
             if setting:
@@ -1010,6 +1092,43 @@ def admin_secret_key_settings():
     setting = ContestSetting.query.filter_by(key='admin_secret_key').first()
     secret_key = setting.value if setting else None
     return render_admin_page(ADMIN_SECRET_KEY_SETTINGS_CONTENT, title="Secret Key Settings", secret_key=secret_key)
+
+@app.route('/admin/coder_of_the_week', methods=['GET', 'POST'])
+def admin_coder_of_the_week():
+    if 'admin_id' not in session: return redirect(url_for('admin_login'))
+    if request.method == 'POST':
+        name = request.form.get('name')
+        branch = request.form.get('branch')
+        year = request.form.get('year')
+        
+        # Delete the old Coder of the Week
+        CoderOfTheWeek.query.delete()
+
+        new_coder = CoderOfTheWeek(name=name, branch=branch, year=year)
+        db.session.add(new_coder)
+        db.session.commit()
+        flash('Coder of the Week has been updated!', 'success')
+        return redirect(url_for('admin_coder_of_the_week'))
+
+    return render_admin_page(ADMIN_CODER_OF_THE_WEEK_CONTENT, title="Coder of the Week")
+
+@app.route('/admin/github_settings', methods=['GET', 'POST'])
+def admin_github_settings():
+    if 'admin_id' not in session: return redirect(url_for('admin_login'))
+    if request.method == 'POST':
+        link = request.form.get('github_repo_link')
+        setting = ContestSetting.query.filter_by(key='github_repo_link').first()
+        if setting:
+            setting.value = link
+        else:
+            db.session.add(ContestSetting(key='github_repo_link', value=link))
+        db.session.commit()
+        flash('GitHub repository link updated successfully!', 'success')
+        return redirect(url_for('admin_github_settings'))
+
+    setting = ContestSetting.query.filter_by(key='github_repo_link').first()
+    return render_admin_page(ADMIN_GITHUB_SETTINGS_CONTENT, title="GitHub Settings", github_repo_link=setting.value if setting else "")
+
 
 @app.route('/admin/share_all_links')
 def share_all_links():
