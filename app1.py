@@ -1,43 +1,55 @@
+# main.py
+# This single file contains the complete Flask application.
+# It includes the backend logic, database models, and all HTML templates.
+
 import os
 import csv
 import io
-import time
 from flask import Flask, render_template_string, request, redirect, url_for, flash, session, make_response, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
-from fpdf import FPDF  # Added for PDF generation
+from fpdf import FPDF # Added for PDF generation
 from sqlalchemy import or_
 from datetime import datetime, time, date
 
 # --- App Configuration ---
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'HRISHABHADMIN2025'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///contest.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Define your secret token somewhere in your app, e.g. right below app config
+app.config['SECRET_KEY'] = secrets.token_hex(16)
 
 # --- Path Configuration (FIX FOR DEPLOYMENT) ---
+# Ensure the 'instance' folder exists where the SQLite DB will be stored.
+# This needs to be outside the __main__ block to run on deployment servers.
 basedir = os.path.abspath(os.path.dirname(__file__))
 instance_path = os.path.join(basedir, 'instance')
 if not os.path.exists(instance_path):
     os.makedirs(instance_path)
 
 # --- Database Configuration ---
+# Use Render's PostgreSQL database URL if available, otherwise use local SQLite
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
+    # The DATABASE_URL from Render starts with postgres://, but SQLAlchemy needs postgresql://
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url.replace("postgres://", "postgresql://", 1)
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'local.db')
-
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'contest.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+
+# --- Mail Configuration (placeholders, will be updated dynamically) ---
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = None
+app.config['MAIL_PASSWORD'] = None
+app.config['MAIL_DEFAULT_SENDER'] = None
 
 # --- Initialize Extensions ---
 db = SQLAlchemy(app)
+mail = Mail(app)
 
 # --- Database Models ---
-RESET_TOKEN = "myUltraSecretResetToken123!"
 
 class Admin(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,17 +57,6 @@ class Admin(db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
-
-@app.route('/reset_admin_password/<token>')
-def reset_admin_password(token):
-    if token != RESET_TOKEN:
-        return "Unauthorized", 403
-    admin = Admin.query.filter_by(username='admin').first()
-    if admin:
-        admin.set_password('newStrongPassword123')
-        db.session.commit()
-        return "Admin password reset successfully"
-    return "Admin user not found"
 
 class Contest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -88,32 +89,19 @@ class ContestSetting(db.Model):
 # --- PDF Generation Helper Class ---
 class PDF(FPDF):
     def header(self):
-        self.set_font('helvetica', 'B', 15)
-        self.cell(0, 10, 'CodeFest - Student Score Report', 0, 1, 'C')
-        self.ln(10)
+        self.set_font('helvetica', 'B', 15); self.cell(0, 10, 'CodeFest - Student Score Report', 0, 1, 'C'); self.ln(10)
     def footer(self):
-        self.set_y(-15)
-        self.set_font('helvetica', 'I', 8)
-        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+        self.set_y(-15); self.set_font('helvetica', 'I', 8); self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
     def create_table(self, table_data, title='', data_size=10, title_size=12):
-        self.set_font('helvetica', 'B', title_size)
-        self.cell(0, 10, title, 0, 1, 'C')
-        self.ln(4)
-        self.set_font('helvetica', 'B', data_size)
-        line_height = self.font_size * 2
+        self.set_font('helvetica', 'B', title_size); self.cell(0, 10, title, 0, 1, 'C'); self.ln(4)
+        self.set_font('helvetica', 'B', data_size); line_height = self.font_size * 2
         col_widths = {'Rank': 15, 'Name': 50, 'Email': 65, 'Branch': 25, 'Score': 20}
-        for col_name in table_data[0]:
-            self.cell(col_widths[col_name], line_height, col_name, border=1, align='C')
+        for col_name in table_data[0]: self.cell(col_widths[col_name], line_height, col_name, border=1, align='C')
         self.ln(line_height)
         self.set_font('helvetica', '', data_size)
         for row in table_data[1:]:
-            for i, datum in enumerate(row):
-                self.cell(col_widths[table_data[0][i]], line_height, str(datum), border=1, align='L')
+            for i, datum in enumerate(row): self.cell(col_widths[table_data[0][i]], line_height, str(datum), border=1, align='L')
             self.ln(line_height)
-
-# --- CREATE TABLES on startup ---
-with app.app_context():
-    db.create_all()
 
 # --- HTML Templates ---
 
@@ -356,421 +344,39 @@ document.addEventListener('DOMContentLoaded', function () {
     prevBtn.addEventListener('click', function () { if (currentStep > 0) { steps[currentStep].classList.remove('form-step-active'); currentStep--; steps[currentStep].classList.add('form-step-active'); updateButtons(); updateProgress(); } });
     updateButtons(); updateProgress();
 });
-</script>"""
+</script>
+"""
 
 ADMIN_LOGIN_CONTENT = """
-<div class="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-4xl w-full space-y-8">
-        <!-- Login Form -->
-        <div class="bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
-            <div>
-                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Admin Panel Login</h2>
-            </div>
-            <form class="mt-8 space-y-6" action="{{ url_for('admin_login') }}" method="POST">
-                <input type="hidden" name="action" value="login">
-                <div class="rounded-md shadow-sm -space-y-px">
-                    <div>
-                        <label for="username" class="sr-only">Username</label>
-                        <input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username">
-                    </div>
-                    <div>
-                        <label for="password" class="sr-only">Password</label>
-                        <input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password">
-                    </div>
-                </div>
-                <div>
-                    <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Sign in</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Registration Form -->
-        <div class="bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
-            <div>
-                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Create New Admin Account</h2>
-                {% if is_first_admin %}
-                <div class="mt-2 text-center">
-                    <p class="text-sm text-green-600 dark:text-green-400 font-medium">First Admin Setup</p>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">No admin accounts exist yet. Create the first admin account to get started.</p>
-                </div>
-                {% else %}
-                <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">Register a new admin user to access the admin panel</p>
-                {% endif %}
-                <div class="mt-3 text-center">
-                    <div class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                        </svg>
-                        Security Code Required
-                    </div>
-                </div>
-            </div>
-            <form class="mt-8 space-y-6" action="{{ url_for('admin_login') }}" method="POST" id="registrationForm">
-                <input type="hidden" name="action" value="register">
-                <div class="rounded-md shadow-sm -space-y-px">
-                    <div>
-                        <label for="reg_username" class="sr-only">Username</label>
-                        <input id="reg_username" name="reg_username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username">
-                    </div>
-                    <div>
-                        <label for="reg_password" class="sr-only">Password</label>
-                        <input id="reg_password" name="reg_password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password">
-                    </div>
-                    <div>
-                        <label for="reg_confirm_password" class="sr-only">Confirm Password</label>
-                        <input id="reg_confirm_password" name="reg_confirm_password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Confirm Password">
-                    </div>
-                    <div>
-                        <label for="security_code" class="sr-only">Security Code</label>
-                        <input id="security_code" name="security_code" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Security Code (Required)">
-                    </div>
-                </div>
-                <div id="passwordMatch" class="text-sm text-red-600 dark:text-red-400 hidden">Passwords do not match</div>
-                <div class="text-xs text-gray-600 dark:text-gray-400 text-center">
-                    <p>⚠️ Admin registration is restricted. You must have the security code to create an admin account.</p>
-                </div>
-                <div>
-                    <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">Create Admin Account</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const passwordInput = document.getElementById('reg_password');
-    const confirmPasswordInput = document.getElementById('reg_confirm_password');
-    const passwordMatchDiv = document.getElementById('passwordMatch');
-    const registrationForm = document.getElementById('registrationForm');
-    
-    function checkPasswordMatch() {
-        if (confirmPasswordInput.value && passwordInput.value !== confirmPasswordInput.value) {
-            passwordMatchDiv.classList.remove('hidden');
-            confirmPasswordInput.classList.add('border-red-500');
-            confirmPasswordInput.classList.remove('border-gray-300', 'dark:border-gray-600');
-        } else {
-            passwordMatchDiv.classList.add('hidden');
-            confirmPasswordInput.classList.remove('border-red-500');
-            confirmPasswordInput.classList.add('border-gray-300', 'dark:border-gray-600');
-        }
-    }
-    
-    passwordInput.addEventListener('input', checkPasswordMatch);
-    confirmPasswordInput.addEventListener('input', checkPasswordMatch);
-    
-    registrationForm.addEventListener('submit', function(e) {
-        if (passwordInput.value !== confirmPasswordInput.value) {
-            e.preventDefault();
-            passwordMatchDiv.classList.remove('hidden');
-            confirmPasswordInput.classList.add('border-red-500');
-            confirmPasswordInput.classList.remove('border-gray-300', 'dark:border-gray-600');
-            return false;
-        }
-    });
-});
-</script>"""
+<div class="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8"><div class="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
+<div><h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Admin Panel Login</h2></div>
+<form class="mt-8 space-y-6" action="{{ url_for('admin_login') }}" method="POST"><div class="rounded-md shadow-sm -space-y-px">
+<div><label for="username" class="sr-only">Username</label><input id="username" name="username" type="text" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Username"></div>
+<div><label for="password" class="sr-only">Password</label><input id="password" name="password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Password"></div>
+</div><div><button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Sign in</button></div></form>
+</div></div>"""
 
 ADMIN_LAYOUT_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en" class="">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - Admin Panel</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark')
-        }
-    </script>
-    <style>
-        body { font-family: 'Poppins', sans-serif; }
-        .admin-sidebar { transition: transform 0.3s ease-in-out; }
-        .admin-content { transition: margin-left 0.3s ease-in-out; }
-        @media (max-width: 768px) {
-            .admin-sidebar { transform: translateX(-100%); }
-            .admin-sidebar.open { transform: translateX(0); }
-            .admin-content { margin-left: 0; }
-        }
-        .nav-item { transition: all 0.2s ease-in-out; }
-        .nav-item:hover { transform: translateX(4px); }
-        .nav-item.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .nav-item.active:hover { transform: none; }
-        
-        /* Fix sidebar positioning */
-        .admin-sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            z-index: 40;
-        }
-        
-        .admin-content {
-            margin-left: 18rem; /* 72 * 0.25rem = 18rem */
-        }
-        
-        @media (max-width: 1024px) {
-            .admin-content {
-                margin-left: 0;
-            }
-        }
-    </style>
-</head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
-    <!-- Mobile Menu Button -->
-    <div class="lg:hidden fixed top-4 left-4 z-50">
-        <button id="mobile-menu-btn" class="bg-gray-800 text-white p-2 rounded-md shadow-lg hover:bg-gray-700 transition-colors">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-            </svg>
-        </button>
-    </div>
-
-    <!-- Admin Sidebar -->
-    <div id="admin-sidebar" class="admin-sidebar w-72 bg-gradient-to-b from-gray-800 to-gray-900 text-white shadow-2xl">
-        <!-- Sidebar Header -->
-        <div class="flex items-center justify-between px-6 py-6 border-b border-gray-700/50">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                    </svg>
-                </div>
-                <div>
-                    <h2 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Admin Panel</h2>
-                    <p class="text-xs text-gray-400">Contest Management</p>
-                </div>
-            </div>
-            <button id="close-sidebar" class="lg:hidden text-gray-400 hover:text-white transition-colors">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-        </div>
-        
-        <!-- Navigation Menu -->
-        <nav class="flex-1 px-4 py-6 space-y-2">
-            <!-- Main Navigation Section -->
-            <div class="mb-6">
-                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-3">Main</h3>
-                <div class="space-y-1">
-                    <a href="{{ url_for('admin_dashboard') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'admin_dashboard' %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
-                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z"></path>
-                        </svg>
-                        <span class="font-medium">Dashboard</span>
-                    </a>
-                </div>
-            </div>
-
-            <!-- Contest Management Section -->
-            <div class="mb-6">
-                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-3">Contests</h3>
-                <div class="space-y-1">
-                    <a href="{{ url_for('admin_manage_contests') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if 'contest' in request.endpoint and 'past' not in request.endpoint and 'edit' not in request.endpoint %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
-                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                        </svg>
-                        <span class="font-medium">Manage Contests</span>
-                    </a>
-                    <a href="{{ url_for('admin_past_contests') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if 'past_contest' in request.endpoint %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
-                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <span class="font-medium">Past Contests</span>
-                    </a>
-                </div>
-            </div>
-
-            <!-- Student Management Section -->
-            <div class="mb-6">
-                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-3">Students</h3>
-                <div class="space-y-1">
-                    <a href="{{ url_for('admin_manual_registration') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'admin_manual_registration' %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
-                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-                        </svg>
-                        <span class="font-medium">Add Student</span>
-                    </a>
-                </div>
-            </div>
-
-            <!-- Settings Section -->
-            <div class="mb-6">
-                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-3">Settings</h3>
-                <div class="space-y-1">
-                    <a href="{{ url_for('admin_settings') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'admin_settings' %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
-                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        </svg>
-                        <span class="font-medium">Global Settings</span>
-                    </a>
-                    <a href="{{ url_for('admin_manage_admins') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'admin_manage_admins' %}active text-white{% else %}text-gray-300 hover:text-white hover:bg-gray-700/50{% endif %}">
-                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
-                        </svg>
-                        <span class="font-medium">Manage Admins</span>
-                    </a>
-                </div>
-            </div>
+<div class="flex h-screen bg-gray-100 dark:bg-gray-900">
+    <div class="w-64 bg-gray-800 text-white flex-col hidden sm:flex">
+        <div class="px-6 py-4 border-b border-gray-700"><h2 class="text-xl font-semibold">Admin Panel</h2></div>
+        <nav class="flex-1 px-4 py-4 space-y-2">
+            <a href="{{ url_for('admin_dashboard') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_dashboard' %}bg-gray-900{% endif %}">Dashboard</a>
+            <a href="{{ url_for('admin_manage_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if 'contest' in request.endpoint and 'past' not in request.endpoint %}bg-gray-900{% endif %}">Manage Contests</a>
+            <a href="{{ url_for('admin_past_contests') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if 'past_contest' in request.endpoint %}bg-gray-900{% endif %}">Past Contests</a>
+            <a href="{{ url_for('admin_manual_registration') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_manual_registration' %}bg-gray-900{% endif %}">Add Student</a>
+            <a href="{{ url_for('admin_register_admin') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_register_admin' %}bg-gray-900{% endif %}">Register New Admin</a>
+            <a href="{{ url_for('admin_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_settings' %}bg-gray-900{% endif %}">Global Settings</a>
+            <a href="{{ url_for('admin_email_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_email_settings' %}bg-gray-900{% endif %}">Email Settings</a>
         </nav>
-        
-        <!-- Sidebar Footer -->
-        <div class="px-4 py-4 border-t border-gray-700/50">
-            <a href="{{ url_for('logout') }}" class="nav-item flex items-center px-4 py-3 rounded-lg transition-all duration-200 text-red-400 hover:text-red-300 hover:bg-red-500/10">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                </svg>
-                <span class="font-medium">Logout</span>
-            </a>
-        </div>
     </div>
-
-    <!-- Main Content -->
-    <div class="admin-content lg:ml-72 min-h-screen">
-        <!-- Top Bar -->
-        <div class="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
-            <div class="flex items-center justify-between px-6 py-4">
-                <div class="flex items-center">
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ title }}</h1>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5 transition-colors">
-                        <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
-                        </svg>
-                        <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="px-6 py-4">
-                    {% for category, message in messages %}
-                        <div class="{% if category == 'success' %}bg-green-100 border-green-400 text-green-800 dark:bg-green-900/20 dark:border-green-600 dark:text-green-300{% elif category == 'error' %}bg-red-100 border-red-400 text-red-800 dark:bg-red-900/20 dark:border-red-600 dark:text-red-300{% else %}bg-blue-100 border-blue-400 text-blue-800 dark:bg-blue-900/20 dark:border-blue-600 dark:text-blue-300{% endif %} border px-4 py-3 rounded-lg relative mb-4 shadow-sm" role="alert">
-                            <span class="block sm:inline">{{ message }}</span>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <!-- Page Content -->
-        <div class="p-6">
-            {% block admin_content %}{% endblock %}
-        </div>
-    </div>
-
-    <script>
-        // Mobile menu functionality
-        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-        const closeSidebarBtn = document.getElementById('close-sidebar');
-        const adminSidebar = document.getElementById('admin-sidebar');
-        const adminContent = document.querySelector('.admin-content');
-
-        mobileMenuBtn.addEventListener('click', () => {
-            adminSidebar.classList.add('open');
-        });
-
-        closeSidebarBtn.addEventListener('click', () => {
-            adminSidebar.classList.remove('open');
-        });
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768 && 
-                !adminSidebar.contains(e.target) && 
-                !mobileMenuBtn.contains(e.target)) {
-                adminSidebar.classList.remove('open');
-            }
-        });
-
-        // Theme toggle functionality
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
-        const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
-
-        function setIconState() {
-            if (document.documentElement.classList.contains('dark')) {
-                themeToggleLightIcon.classList.remove('hidden');
-                themeToggleDarkIcon.classList.add('hidden');
-            } else {
-                themeToggleDarkIcon.classList.remove('hidden');
-                themeToggleLightIcon.classList.add('hidden');
-            }
-        }
-
-        setIconState();
-
-        themeToggleBtn.addEventListener('click', function() {
-            document.documentElement.classList.toggle('dark');
-            let theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-            localStorage.setItem('color-theme', theme);
-            setIconState();
-        });
-    </script>
-</body>
-</html>
+    <div class="flex-1 p-4 sm:p-10 overflow-y-auto">{% block admin_content %}{% endblock %}</div>
+</div>
 """
 
 ADMIN_DASHBOARD_CONTENT = """
 <div class="max-w-7xl mx-auto">
     <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1></div>
-    
-    <!-- Security Information Card -->
-    <div class="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 p-6 rounded-lg shadow-lg mb-8">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center">
-                <svg class="w-6 h-6 text-red-600 dark:text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                </svg>
-                <h2 class="text-xl font-semibold text-red-800 dark:text-red-200">Security Information</h2>
-            </div>
-            <a href="{{ url_for('admin_settings') }}" class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 text-sm font-medium">View Details →</a>
-        </div>
-        
-        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-white dark:bg-gray-700 p-4 rounded-lg border border-red-200 dark:border-red-600">
-                <div class="text-center">
-                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">ADMIN_SECURE_****_****_****_****</div>
-                    <div class="text-xs text-red-600 dark:text-red-400 mt-1">Registration Code</div>
-                </div>
-            </div>
-            <div class="bg-white dark:bg-gray-700 p-4 rounded-lg border border-red-200 dark:border-red-600">
-                <div class="text-center">
-                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">5</div>
-                    <div class="text-xs text-red-600 dark:text-red-400 mt-1">Max Failed Attempts</div>
-                </div>
-            </div>
-            <div class="bg-white dark:bg-gray-700 p-4 rounded-lg border border-red-200 dark:border-red-600">
-                <div class="text-center">
-                    <div class="text-2xl font-bold text-red-600 dark:text-red-400">5 min</div>
-                    <div class="text-xs text-red-600 dark:text-red-400 mt-1">Lockout Duration</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="mt-4 text-center">
-            <p class="text-sm text-red-600 dark:text-red-400">
-                ⚠️ Admin registration is restricted. Only users with the security code can create admin accounts.
-            </p>
-        </div>
-    </div>
-    
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg"><h3 class="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Applicants</h3><p class="text-3xl font-semibold text-gray-900 dark:text-white">{{ stats.total }}</p></div>
         <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg"><h3 class="text-gray-500 dark:text-gray-400 text-sm font-medium">Accepted</h3><p class="text-3xl font-semibold text-green-600">{{ stats.accepted }}</p></div>
@@ -942,122 +548,36 @@ ADMIN_REGISTER_ADMIN_CONTENT = """
 
 ADMIN_SETTINGS_CONTENT = """
 <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Global Settings</h1>
-
-<!-- Security Information Section -->
-<div class="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 p-6 rounded-lg shadow-lg max-w-2xl mx-auto mb-8">
-    <div class="flex items-center mb-4">
-        <svg class="w-6 h-6 text-red-600 dark:text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-        </svg>
-        <h2 class="text-xl font-semibold text-red-800 dark:text-red-200">Security Information</h2>
-    </div>
-    
-    <div class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium text-red-700 dark:text-red-300 mb-2">Admin Registration Security Code</label>
-            <div class="flex items-center space-x-2">
-                <input type="password" id="security-code-input" value="HRISHABHADMIN2025" readonly 
-                       class="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-red-300 dark:border-red-600 rounded-md text-sm font-mono text-red-800 dark:text-red-200 cursor-text">
-                <button type="button" id="toggle-mask" onclick="toggleMask()" 
-                        class="px-3 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors">
-                    Show
-                </button>
-                <button type="button" onclick="copyToClipboard(document.getElementById('security-code-input'))" 
-                        class="px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors">
-                    Copy
-                </button>
-            </div>
-            <p class="mt-2 text-xs text-red-600 dark:text-red-400">
-                ⚠️ This code is required to create new admin accounts. Keep it secure and share only with authorized personnel.
-            </p>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-red-200 dark:border-red-700">
-            <div class="text-center">
-                <div class="text-2xl font-bold text-red-600 dark:text-red-400">5</div>
-                <div class="text-xs text-red-600 dark:text-red-400">Max Failed Attempts</div>
-            </div>
-            <div class="text-center">
-                <div class="text-2xl font-bold text-red-600 dark:text-red-400">5 min</div>
-                <div class="text-xs text-red-600 dark:text-red-400">Lockout Duration</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Global Settings Form -->
 <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
     <form action="{{ url_for('admin_settings') }}" method="POST" class="space-y-6">
-        <div>
-            <label for="global_test_link" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Global HackerRank Test Link</label>
-            <input type="url" name="global_test_link" id="global_test_link" value="{{ global_test_link or '' }}" required 
-                   class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">This link will be assigned to all accepted students when you use the "Assign & Email All" feature.</p>
-        </div>
-        <div class="flex justify-end">
-            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Settings</button>
-        </div>
+        <div><label for="global_test_link" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Global HackerRank Test Link</label>
+        <input type="url" name="global_test_link" id="global_test_link" value="{{ global_test_link or '' }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">This link will be assigned to all accepted students when you use the "Assign & Email All" feature.</p></div>
+        <div class="flex justify-end"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Settings</button></div>
     </form>
 </div>
-
-<script>
-function copyToClipboard(inputElement) {
-    inputElement.select();
-    inputElement.setSelectionRange(0, 99999); // For mobile devices
-    document.execCommand('copy');
-    
-    // Show feedback
-    const button = inputElement.nextElementSibling;
-    const originalText = button.textContent;
-    button.textContent = 'Copied!';
-    button.classList.add('bg-green-600', 'hover:bg-green-700');
-    button.classList.remove('bg-red-600', 'hover:bg-red-700');
-    
-    setTimeout(() => {
-        button.textContent = originalText;
-        button.classList.remove('bg-green-600', 'hover:bg-green-700');
-        button.classList.add('bg-red-600', 'hover:bg-red-700');
-    }, 2000);
-}
-
-function toggleMask() {
-    const input = document.getElementById('security-code-input');
-    const button = document.getElementById('toggle-mask');
-    
-    if (input.type === 'password') {
-        input.type = 'text';
-        button.textContent = 'Hide';
-        button.classList.remove('bg-gray-600', 'hover:bg-gray-700');
-        button.classList.add('bg-orange-600', 'hover:bg-orange-700');
-    } else {
-        input.type = 'password';
-        button.textContent = 'Show';
-        button.classList.remove('bg-orange-600', 'hover:bg-orange-700');
-        button.classList.add('bg-gray-600', 'hover:bg-gray-700');
-    }
-}
-</script>
 """
 
 ADMIN_EMAIL_SETTINGS_CONTENT = """
 <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Email Settings</h1>
 <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
+    <div class="prose prose-sm max-w-none text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-gray-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-4 mb-6">
+        <h4>Instructions for Sending Email via Gmail</h4>
+        <ol>
+            <li><strong>Enable 2-Step Verification</strong> on your Google Account.</li>
+            <li>Go to your Google Account's <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-blue-600 hover:underline">App Passwords</a> page.</li>
+            <li>Select "Mail" for the app and "Other (Custom name)" for the device. Name it "Coding Contest App".</li>
+            <li>Copy the generated 16-digit password.</li>
+            <li>Paste your full Gmail address and the 16-digit App Password below and save.</li>
+        </ol>
+        <p>This allows the application to send emails securely without storing your main password.</p>
+    </div>
     <form action="{{ url_for('admin_email_settings') }}" method="POST" class="space-y-6">
-        <div>
-            <label for="mail_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Username</label>
-            <input type="email" name="mail_username" id="mail_username" value="{{ mail_username or '' }}" required 
-                   class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">The email address that will be used to send emails to students.</p>
-        </div>
-        <div>
-            <label for="mail_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Password</label>
-            <input type="password" name="mail_password" id="mail_password" value="{{ mail_password or '' }}" required 
-                   class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">The password for the email account (app password for Gmail).</p>
-        </div>
-        <div class="flex justify-end">
-            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md font-medium hover:bg-blue-700">Save Email Settings</button>
-        </div>
+        <div><label for="mail_username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Your Gmail Address</label>
+        <input type="email" name="mail_username" id="mail_username" value="{{ email_settings.get('mail_username', '') }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
+        <div><label for="mail_app_password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Google App Password (16 digits)</label>
+        <input type="password" name="mail_app_password" id="mail_app_password" value="{{ email_settings.get('mail_app_password', '') }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div>
+        <div class="flex justify-end"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Email Settings</button></div>
     </form>
 </div>
 """
@@ -1169,11 +689,6 @@ STUDENT_DASHBOARD_CONTENT = """
 </div></div></div>
 """
 
-# --- Helper Functions ---
-def render_admin_page(content, **kwargs):
-    """Helper function to render admin pages with the admin layout template"""
-    return render_template_string(ADMIN_LAYOUT_TEMPLATE.replace('{% block admin_content %}{% endblock %}', content), **kwargs)
-
 # --- Route Definitions ---
 
 @app.route('/')
@@ -1216,98 +731,20 @@ def register(contest_id):
         
     return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', REGISTER_CONTENT), title=f"Register for {contest.name}", contest=contest)
 
-
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    if 'admin_id' in session:
-        return redirect(url_for('admin_dashboard'))
-    
-    # Get client IP address
-    client_ip = request.remote_addr
-    
-    # Check if IP is locked out
-    if is_ip_locked_out(client_ip):
-        remaining_time = LOGIN_LOCKOUT_TIME - (time.time() - failed_login_attempts[client_ip][1])
-        flash(f'Too many failed attempts. Please try again in {int(remaining_time)} seconds.', 'error')
-        return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login", is_first_admin=(Admin.query.count() == 0))
-    
+    if 'admin_id' in session: return redirect(url_for('admin_dashboard'))
     if request.method == 'POST':
-        action = request.form.get('action', 'login')
-        
-        if action == 'login':
-            # Handle login
-            username = request.form['username']
-            password = request.form['password']
-            app.logger.info(f"Login attempt: username={username}, IP={client_ip}")
-            admin = Admin.query.filter_by(username=username).first()
-            if admin:
-                app.logger.info(f"Admin found: {admin.username}")
-                if admin.check_password(password):
-                    app.logger.info("Password verified, login success")
-                    log_security_event("LOGIN_SUCCESS", f"Admin {username} logged in successfully", client_ip, username)
-                    session['admin_id'] = admin.id
-                    # Reset failed attempts on successful login
-                    if client_ip in failed_login_attempts:
-                        del failed_login_attempts[client_ip]
-                    return redirect(url_for('admin_dashboard'))
-                else:
-                    app.logger.info("Password verification failed")
-                    log_security_event("LOGIN_FAILED", f"Invalid password for admin {username}", client_ip, username)
-                    record_failed_attempt(client_ip)
-            else:
-                app.logger.info("Admin not found")
-                log_security_event("LOGIN_FAILED", f"Login attempt with non-existent username: {username}", client_ip, username)
-                record_failed_attempt(client_ip)
-            flash('Invalid username or password.', 'error')
-            
-        elif action == 'register':
-            # Handle registration with security code validation
-            username = request.form['reg_username']
-            password = request.form['reg_password']
-            confirm_password = request.form['reg_confirm_password']
-            security_code = request.form.get('security_code', '')
-            
-            # Check if this is the first admin user
-            existing_admin_count = Admin.query.count()
-            is_first_admin = existing_admin_count == 0
-            
-            # Validation
-            if not username or not password:
-                flash('Username and password are required.', 'error')
-            elif password != confirm_password:
-                flash('Passwords do not match.', 'error')
-            elif len(password) < 6:
-                flash('Password must be at least 6 characters long.', 'error')
-            elif Admin.query.filter_by(username=username).first():
-                flash('Username already exists.', 'error')
-            elif not security_code:
-                flash('Security code is required for admin registration.', 'error')
-            elif security_code != ADMIN_REGISTRATION_CODE:
-                flash('Invalid security code. Admin registration is restricted.', 'error')
-                log_security_event("REGISTRATION_FAILED", f"Failed admin registration attempt with invalid security code for username: {username}", client_ip, username)
-                app.logger.warning(f"Failed admin registration attempt with invalid security code from IP: {client_ip}")
-                # Record this as a failed attempt
-                record_failed_attempt(client_ip)
-            else:
-                # Create new admin
-                new_admin = Admin(username=username)
-                new_admin.set_password(password)
-                db.session.add(new_admin)
-                db.session.commit()
-                
-                log_security_event("REGISTRATION_SUCCESS", f"New admin account created: {username}", client_ip, username)
-                
-                if is_first_admin:
-                    flash(f'First admin account "{username}" created successfully! You can now login.', 'success')
-                else:
-                    flash(f'Admin account "{username}" created successfully! You can now login.', 'success')
-                
-                app.logger.info(f"New admin account created: {username} from IP: {client_ip}")
-                return redirect(url_for('admin_login'))
-    
-    existing_admin_count = Admin.query.count()
-    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login", is_first_admin=(existing_admin_count == 0))
+        admin = Admin.query.filter_by(username=request.form['username']).first()
+        if admin and admin.check_password(request.form['password']):
+            session['admin_id'] = admin.id
+            return redirect(url_for('admin_dashboard'))
+        flash('Invalid username or password.', 'error')
+    return render_template_string(LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LOGIN_CONTENT), title="Admin Login")
 
+def render_admin_page(content, **kwargs):
+    base = LAYOUT_TEMPLATE.replace('{% block content %}{% endblock %}', ADMIN_LAYOUT_TEMPLATE)
+    return render_template_string(base.replace('{% block admin_content %}{% endblock %}', content), **kwargs)
 
 @app.route('/admin/dashboard', methods=['GET'])
 def admin_dashboard():
@@ -1403,34 +840,19 @@ def admin_delete_contest(contest_id):
 
 @app.route('/admin/register_admin', methods=['GET', 'POST'])
 def admin_register_admin():
-    # Redirect to login page since registration is now available there
-    return redirect(url_for('admin_login'))
-
-@app.route('/admin/manage_admins')
-def admin_manage_admins():
-    if 'admin_id' not in session:
-        return redirect(url_for('admin_login'))
-    
-    admins = Admin.query.all()
-    return render_admin_page(ADMIN_MANAGE_ADMINS_CONTENT, title="Manage Admin Accounts", admins=admins)
-
-@app.route('/admin/delete_admin/<int:admin_id>', methods=['POST'])
-def admin_delete_admin(admin_id):
-    if 'admin_id' not in session:
-        return redirect(url_for('admin_login'))
-    
-    # Prevent deleting the current admin
-    if admin_id == session['admin_id']:
-        flash('You cannot delete your own account.', 'error')
-        return redirect(url_for('admin_manage_admins'))
-    
-    admin = Admin.query.get_or_404(admin_id)
-    username = admin.username
-    db.session.delete(admin)
-    db.session.commit()
-    
-    flash(f'Admin account "{username}" has been deleted successfully.', 'success')
-    return redirect(url_for('admin_manage_admins'))
+    if 'admin_id' not in session: return redirect(url_for('admin_login'))
+    if request.method == 'POST':
+        username = request.form['username']
+        if Admin.query.filter_by(username=username).first():
+            flash('Username already exists.', 'error')
+        else:
+            new_admin = Admin(username=username)
+            new_admin.set_password(request.form['password'])
+            db.session.add(new_admin)
+            db.session.commit()
+            flash(f'Admin "{username}" created successfully.', 'success')
+            return redirect(url_for('admin_dashboard'))
+    return render_admin_page(ADMIN_REGISTER_ADMIN_CONTENT, title="Register New Admin")
 
 @app.route('/admin/delete_student/<int:student_id>', methods=['POST'])
 def admin_delete_student(student_id):
@@ -1546,9 +968,6 @@ def admin_edit_student(student_id):
     past_performance = Student.query.filter(Student.email == student.email, Student.id != student.id, Student.score.isnot(None)).all()
     return render_admin_page(ADMIN_EDIT_STUDENT_CONTENT, title="Edit Student", student=student, branches=["CSE", "ECE", "EIE", "ME", "EEE", "Civil"], past_performance=past_performance)
 
-
-
-
 @app.route('/admin/update_status/<int:student_id>/<string:status>')
 def update_status(student_id, status):
     if 'admin_id' not in session: return redirect(url_for('admin_login'))
@@ -1651,66 +1070,20 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
 
-# --- Security Configuration ---
-ADMIN_REGISTRATION_CODE = "HRISHABHADMIN2025"  # Secure alphanumeric code required for admin registration
-MAX_LOGIN_ATTEMPTS = 5  # Maximum failed login attempts before temporary lockout
-LOGIN_LOCKOUT_TIME = 300  # Lockout time in seconds (5 minutes)
-
-# Track failed login attempts
-failed_login_attempts = {}
-
-def is_ip_locked_out(ip_address):
-    """Check if an IP address is temporarily locked out due to failed login attempts"""
-    if ip_address in failed_login_attempts:
-        attempts, timestamp = failed_login_attempts[ip_address]
-        if attempts >= MAX_LOGIN_ATTEMPTS:
-            if time.time() - timestamp < LOGIN_LOCKOUT_TIME:
-                return True
-            else:
-                # Reset after lockout period
-                del failed_login_attempts[ip_address]
-    return False
-
-def record_failed_attempt(ip_address):
-    """Record a failed login attempt for an IP address"""
-    current_time = time.time()
-    if ip_address in failed_login_attempts:
-        attempts, _ = failed_login_attempts[ip_address]
-        failed_login_attempts[ip_address] = (attempts + 1, current_time)
-    else:
-        failed_login_attempts[ip_address] = (1, current_time)
-
-def log_security_event(event_type, details, ip_address=None, username=None):
-    """Log security events for monitoring and auditing"""
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    ip = ip_address or 'Unknown'
-    user = username or 'Unknown'
-    
-    log_message = f"[SECURITY] {timestamp} | {event_type} | IP: {ip} | User: {user} | Details: {details}"
-    app.logger.warning(log_message)
-
-if __name__ == '__main__':
-    instance_path = os.path.join(basedir, 'instance')
-    if not os.path.exists(instance_path):
-        os.makedirs(instance_path)
+def create_default_admin():
     with app.app_context():
-        db.create_all()
         if not Admin.query.first():
+            print("Creating default admin user...")
             admin = Admin(username='admin')
             admin.set_password('password')
             db.session.add(admin)
             db.session.commit()
-            app.logger.info("Default admin user created: admin / password")
+            print("Default admin created. Username: admin, Password: password")
+
+if __name__ == '__main__':
+    instance_path = os.path.join(basedir, 'instance')
+    if not os.path.exists(instance_path): os.makedirs(instance_path)
+    with app.app_context():
+        db.create_all()
+    create_default_admin()
     app.run(debug=True)
-
-
-
-
-
-
-
-
-
-
-
-
