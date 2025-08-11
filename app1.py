@@ -395,7 +395,6 @@ ADMIN_LAYOUT_TEMPLATE = """
             <a href="{{ url_for('admin_manual_registration') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_manual_registration' %}bg-gray-900{% endif %}">Add Student</a>
             <a href="{{ url_for('admin_register_admin') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_register_admin' %}bg-gray-900{% endif %}">Register New Admin</a>
             <a href="{{ url_for('admin_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_settings' %}bg-gray-900{% endif %}">Global Settings</a>
-            <a href="{{ url_for('admin_secret_key_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_secret_key_settings' %}bg-gray-900{% endif %}">Secret Key Settings</a>
             <a href="{{ url_for('admin_coder_of_the_week') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_coder_of_the_week' %}bg-gray-900{% endif %}">Coder of the Week</a>
             <a href="{{ url_for('admin_github_settings') }}" class="flex items-center px-4 py-2 rounded-md hover:bg-gray-700 {% if request.endpoint == 'admin_github_settings' %}bg-gray-900{% endif %}">GitHub Settings</a>
         </nav>
@@ -732,34 +731,6 @@ ADMIN_REGISTER_CONTENT = """
 </div></div>
 """
 
-ADMIN_SECRET_KEY_SETTINGS_CONTENT = """
-<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">Admin Secret Key Settings</h1>
-<div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-2xl mx-auto">
-    <div class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Current Secret Key</label>
-            <div class="mt-1 p-2 bg-gray-100 dark:bg-gray-700 rounded-md text-gray-500 dark:text-gray-400">
-                {{ '*****' if secret_key else 'Not Set' }}
-            </div>
-        </div>
-    </div>
-    <form action="{{ url_for('admin_secret_key_settings') }}" method="POST" class="space-y-6 mt-6 border-t dark:border-gray-700 pt-6">
-        <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Update Secret Key</h2>
-        <div>
-            <label for="new_secret_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300">New Secret Key</label>
-            <input type="password" name="new_secret_key" id="new_secret_key" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-        </div>
-        <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Enter Password to Confirm</label>
-            <input type="password" name="password" id="password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Required to make changes">
-        </div>
-        <div class="flex justify-end">
-            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md font-medium hover:bg-green-700">Save Secret Key</button>
-        </div>
-    </form>
-</div>
-"""
-
 SHARE_LINKS_CONTENT = """
 <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
     <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Test Links for {{ contest.name }}</h1>
@@ -917,8 +888,7 @@ def admin_login():
 @app.route('/admin/register', methods=['GET', 'POST'])
 def admin_register():
     if request.method == 'POST':
-        secret_key_setting = ContestSetting.query.filter_by(key='admin_secret_key').first()
-        if secret_key_setting and request.form.get('secret_key') == secret_key_setting.value:
+        if request.form.get('secret_key') == 'HRISHABHX2025':
             name = request.form['name']
             username = generate_username(name)
             if Admin.query.filter_by(username=username).first():
@@ -1073,29 +1043,6 @@ def admin_settings():
         return redirect(url_for('admin_settings'))
     setting = ContestSetting.query.filter_by(key=setting_key).first()
     return render_admin_page(ADMIN_SETTINGS_CONTENT, title="Global Settings", global_test_link=setting.value if setting else "")
-
-@app.route('/admin/secret_key_settings', methods=['GET', 'POST'])
-def admin_secret_key_settings():
-    if 'admin_id' not in session: return redirect(url_for('admin_login'))
-    
-    if request.method == 'POST':
-        password = request.form.get('password')
-        if password == 'HRISHABHX2025':
-            new_secret_key = request.form.get('new_secret_key')
-            setting = ContestSetting.query.filter_by(key='admin_secret_key').first()
-            if setting:
-                setting.value = new_secret_key
-            else:
-                db.session.add(ContestSetting(key='admin_secret_key', value=new_secret_key))
-            db.session.commit()
-            flash('Admin secret key updated successfully!', 'success')
-        else:
-            flash('Incorrect password. Secret key not updated.', 'error')
-        return redirect(url_for('admin_secret_key_settings'))
-        
-    setting = ContestSetting.query.filter_by(key='admin_secret_key').first()
-    secret_key = setting.value if setting else None
-    return render_admin_page(ADMIN_SECRET_KEY_SETTINGS_CONTENT, title="Secret Key Settings", secret_key=secret_key)
 
 @app.route('/admin/coder_of_the_week', methods=['GET', 'POST'])
 def admin_coder_of_the_week():
@@ -1308,13 +1255,6 @@ def create_default_admin():
             db.session.add(admin)
             db.session.commit()
             print("Default admin created. Username: hris1234, Password: hrishabhxcode")
-        
-        if not ContestSetting.query.filter_by(key='admin_secret_key').first():
-            print("Creating default admin secret key...")
-            db.session.add(ContestSetting(key='admin_secret_key', value='HRISHABHX2025'))
-            db.session.commit()
-            print("Default admin secret key created: HRISHABHX2025")
-
 
 if __name__ == '__main__':
     instance_path = os.path.join(basedir, 'instance')
